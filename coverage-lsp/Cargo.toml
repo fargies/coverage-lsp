@@ -1,0 +1,15 @@
+[package]
+name = "coverage-lsp"
+version = "0.1.0"
+edition = "2024"
+license = "Zlib"
+
+[dependencies]
+lcov-parser = "3.2.2"
+tokio = { version = "1.50.0", features = ["io-std", "macros", "rt-multi-thread"] }
+tower-lsp = "0.20.0"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+
+[dev-dependencies]
+ctor = "0.6.3"

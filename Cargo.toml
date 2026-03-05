@@ -1,0 +1,5 @@
+[workspace]
+members = ["coverage-lsp", "zed-coverage-lsp"]
+
+default-members = ["coverage-lsp"]
+resolver = "2"
