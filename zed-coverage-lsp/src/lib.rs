@@ -1,4 +1,4 @@
-use std::{fs, io::Write};
+use std::fs;
 use zed_extension_api::{self as zed, Result};
 
 #[inline]
@@ -34,9 +34,7 @@ impl CoverageExtension {
 
     fn check_installed() -> Option<String> {
         let entries = fs::read_dir(".").ok()?;
-            eprintln!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> testing {:?}", std::env::current_dir());
         for entry in entries.flatten().filter(|entry| entry.path().is_dir()) {
-            eprintln!(">>>>>>>>>>>>>>>>>>>>>>>>>>>> testing {entry:?}");
             let binary_path = entry.path().join(bin_name());
             if fs::metadata(&binary_path).is_ok_and(|stat| stat.is_file()) {
                 return binary_path.to_str().map(|s| s.to_string());
@@ -58,7 +56,6 @@ impl zed::Extension for CoverageExtension {
     ) -> Result<zed::Command> {
         let command = self.language_server_binary_path(id, worktree)?;
 
-            eprintln!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>. testing there ");
         Ok(zed::Command {
             command,
             args: vec![],
