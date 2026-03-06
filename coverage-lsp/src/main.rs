@@ -109,6 +109,8 @@ impl LanguageServer for CoverageLanguageServer {
     }
 
     async fn shutdown(&self) -> Result<()> {
+        self.context.stop().await;
+        self.context.report.write().await.take();
         Ok(())
     }
 
@@ -190,7 +192,7 @@ impl LanguageServer for CoverageLanguageServer {
             *LSP_SETTINGS.write().unwrap() = Settings::from(value);
 
             #[cfg(feature = "notifications")]
-            self.send_update_notification().await;
+            self.send_update_notification(false).await;
         }
     }
 }

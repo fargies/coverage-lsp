@@ -22,7 +22,8 @@
 
 use lcov_parser::LineData;
 use tower_lsp::lsp_types::{
-    Color, ColorInformation, Diagnostic, DiagnosticSeverity, FullDocumentDiagnosticReport, Position, Range, Url, WorkspaceDocumentDiagnosticReport, WorkspaceFullDocumentDiagnosticReport
+    ColorInformation, Diagnostic, DiagnosticSeverity, FullDocumentDiagnosticReport, Position,
+    Range, Url, WorkspaceDocumentDiagnosticReport, WorkspaceFullDocumentDiagnosticReport,
 };
 
 use crate::{LSP_NAME, LSP_SETTINGS};
@@ -129,10 +130,20 @@ impl FileCoverage {
             (settings.hit, settings.miss)
         };
         for cov in self.coverage.iter() {
-            if cov.count != 0 && let Some(color) = hit_color {
-                ret.push(ColorInformation { range: cov.range(), color });
-            } else if cov.count == 0 && let Some(color) = miss_color {
-                ret.push(ColorInformation { range: cov.range(), color });
+            if cov.count != 0
+                && let Some(color) = hit_color
+            {
+                ret.push(ColorInformation {
+                    range: cov.range(),
+                    color,
+                });
+            } else if cov.count == 0
+                && let Some(color) = miss_color
+            {
+                ret.push(ColorInformation {
+                    range: cov.range(),
+                    color,
+                });
             }
         }
         ret

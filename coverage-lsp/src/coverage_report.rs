@@ -137,7 +137,7 @@ impl CoverageReport {
         if last_id.as_ref().is_some_and(|last_id| last_id == &self.id) {
             return None;
         }
-        return Some(
+        Some(
             RelatedFullDocumentDiagnosticReport {
                 related_documents: None,
                 full_document_diagnostic_report: FullDocumentDiagnosticReport {
@@ -155,7 +155,7 @@ impl CoverageReport {
                 },
             }
             .into(),
-        );
+        )
     }
 
     pub fn create_document_color(&self, uri: &Url) -> Vec<ColorInformation> {

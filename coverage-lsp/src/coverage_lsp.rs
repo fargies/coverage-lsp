@@ -89,6 +89,14 @@ impl CoverageLanguageServerContext {
         });
     }
 
+    pub async fn stop(self: &Arc<Self>) {
+        let join_handle = self.join_handle.lock().unwrap().take();
+        if let Some(join_handle) = join_handle {
+            join_handle.abort();
+            join_handle.await.unwrap();
+        }
+    }
+
     async fn run(weak: Weak<Self>) {
         while let Some(ctx) = weak.upgrade() {
             ctx.update().await;
@@ -117,6 +125,10 @@ impl CoverageLanguageServerContext {
                             format!("failed to load report: {err:?}"),
                         )
                         .await;
+                    self.report.write().await.take();
+
+                    #[cfg(feature = "notifications")]
+                    self.send_update_notification(true).await;
                     return;
                 }
             };
@@ -132,14 +144,14 @@ impl CoverageLanguageServerContext {
             } else {
                 self.report.write().await.replace(report);
                 #[cfg(feature = "notifications")]
-                self.send_update_notification().await;
+                self.send_update_notification(false).await;
             }
         }
     }
 
     /// Edit opened documents to trigger a coloration update
     #[cfg(feature = "notifications")]
-    pub async fn send_update_notification(&self) {
+    pub async fn send_update_notification(&self, forced: bool) {
         let opened = self.open_docs.read().await.clone();
         let mut changes = HashMap::with_capacity(1);
         let edit = Vec::from([TextEdit {
@@ -150,7 +162,7 @@ impl CoverageLanguageServerContext {
         // if we update all docs at once, zed will open an "LSP Edits" tab
         // notifying editors one by ones silences it.
         for doc in opened.into_iter() {
-            if self
+            if !forced && self
                 .report
                 .read()
                 .await
