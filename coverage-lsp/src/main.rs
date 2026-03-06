@@ -64,32 +64,16 @@ impl LanguageServer for CoverageLanguageServer {
                 version: Some(env!("CARGO_PKG_VERSION").into()),
             }),
             capabilities: ServerCapabilities {
-                workspace: Some(WorkspaceServerCapabilities {
-                    /* FIXME ensure this is required */
-                    workspace_folders: Some(WorkspaceFoldersServerCapabilities {
-                        supported: Some(true),
-                        change_notifications: Some(OneOf::Left(true)),
-                    }),
-                    file_operations: None,
-                }),
-                // text_document_sync: Some(TextDocumentSyncCapability::Options(
-                //     TextDocumentSyncOptions {
-                //         open_close: Some(true),
-                //         change: Some(TextDocumentSyncKind::FULL),
-                //         ..Default::default()
-                //     },
-                // )),
+                /// Track opened/closed documents to send notifications on coverage file change
+                text_document_sync: Some(TextDocumentSyncCapability::Options(
+                    TextDocumentSyncOptions {
+                        open_close: Some(true),
+                        change: Some(TextDocumentSyncKind::NONE),
+                        ..Default::default()
+                    },
+                )),
+                /// Send coverage info as colors
                 color_provider: Some(ColorProviderCapability::Simple(true)),
-                // code_action_provider: Some(CodeActionProviderCapability::Options(
-                //     CodeActionOptions {
-                //         code_action_kinds: Some(vec![
-                //             CodeActionKind::QUICKFIX,
-                //             CodeActionKind::SOURCE_FIX_ALL,
-                //         ]),
-                //         ..Default::default()
-                //     },
-                // )),
-                // hover_provider: Some(HoverProviderCapability::Simple(true)),
                 #[cfg(feature = "diagnostics")]
                 diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
                     DiagnosticOptions {
@@ -107,19 +91,6 @@ impl LanguageServer for CoverageLanguageServer {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        // if let Err(err) = self.client.register_capability(vec![Registration { id: "1".into(), method: "workspace/didChangeWatchedFiles".into(), register_options: Some(json!({ "watchers": [ { "globPattern": "*.info" } ] })) }]).await {
-        //     self.client.log_message(MessageType::WARNING, format!("failed to watch for info files: {err:?}")).await;
-        // }
-        // if let Err(err) = self.client.register_capability(vec![Registration { id: "2".into(), method: "workspace/didChangeWatchedFiles".into(), register_options: Some(json!({ "watchers": [ {"baseUri": "/home/fargie_s/work/perso/ppm/target/coverage/output", "pattern": "*.info"} ] })) }]).await {
-        //     self.client.log_message(MessageType::WARNING, format!("failed to watch for info files: {err:?}")).await;
-        // }
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("{:?}", self.root_uri.read().await),
-            )
-            .await;
-
         self.client
             .log_message(MessageType::INFO, "server initialized!")
             .await;
@@ -185,13 +156,12 @@ impl LanguageServer for CoverageLanguageServer {
         }
     }
 
-    async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("watched files change: {params:?}"),
-            )
-            .await;
+    async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        self.open_docs.write().await.insert(params.text_document.uri);
+    }
+
+    async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        self.open_docs.write().await.remove(&params.text_document.uri);
     }
 }
 

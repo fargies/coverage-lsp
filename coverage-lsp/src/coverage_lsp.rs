@@ -21,13 +21,20 @@
 ** Author: Sylvain Fargier <fargier.sylvain@gmail.com>
 */
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use tokio::{sync::RwLock, task::{self, JoinHandle}};
-use tower_lsp::{Client, lsp_types::{MessageType, Url}};
+use tokio::{
+    sync::RwLock,
+    task::{self, JoinHandle},
+};
+use tower_lsp::lsp_types::{Position, Range, TextEdit, WorkspaceEdit};
+use tower_lsp::{
+    Client,
+    lsp_types::{MessageType, Url},
+};
 
 use crate::CoverageReport;
 
@@ -57,6 +64,7 @@ pub struct CoverageLanguageServerContext {
     pub client: Client,
     pub root_uri: RwLock<Url>,
     pub report: RwLock<Option<CoverageReport>>,
+    pub open_docs: RwLock<HashSet<Url>>,
     join_handle: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -68,6 +76,7 @@ impl CoverageLanguageServerContext {
                 Url::from_directory_path(std::env::current_dir().unwrap()).unwrap(),
             ),
             report: Default::default(),
+            open_docs: Default::default(),
             join_handle: Default::default(),
         });
 
@@ -128,7 +137,48 @@ impl CoverageLanguageServerContext {
                     .log_message(MessageType::INFO, format!("loaded: {:?}", report.db.keys()))
                     .await;
                 self.report.write().await.replace(report);
+                self.send_update_notification().await;
             }
+        }
+    }
+
+    /// Edit opened documents to trigger a coloration update
+    async fn send_update_notification(&self) {
+        let mut changes = HashMap::new();
+        let edit = Vec::from([TextEdit {
+            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+            new_text: " ".into(),
+        }]);
+        for f in self.open_docs.read().await.iter() {
+            changes.insert(f.clone(), edit.clone());
+        }
+        if let Err(err) = self
+            .client
+            .apply_edit(WorkspaceEdit {
+                changes: Some(changes.clone()),
+                ..Default::default()
+            })
+            .await
+        {
+            tracing::error!(?err, "WorkspaceEdit error");
+            return;
+        }
+
+        for (_, change) in changes.iter_mut() {
+            let text_edit = change.first_mut().unwrap();
+            text_edit.range.end.character = 1;
+            text_edit.new_text = String::default();
+        }
+        /* for some reason if we send both edits at once the delete is done before write */
+        if let Err(err) = self
+            .client
+            .apply_edit(WorkspaceEdit {
+                changes: Some(changes),
+                ..Default::default()
+            })
+            .await
+        {
+            tracing::error!(?err, "WorkspaceEdit error");
         }
     }
 
