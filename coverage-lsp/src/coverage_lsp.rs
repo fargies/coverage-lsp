@@ -1,0 +1,174 @@
+/*
+** Copyright (C) 2026 Sylvain Fargier
+**
+** This software is provided 'as-is', without any express or implied
+** warranty.  In no event will the authors be held liable for any damages
+** arising from the use of this software.
+**
+** Permission is granted to anyone to use this software for any purpose,
+** including commercial applications, and to alter it and redistribute it
+** freely, subject to the following restrictions:
+**
+** 1. The origin of this software must not be misrepresented; you must not
+**    claim that you wrote the original software. If you use this software
+**    in a product, an acknowledgment in the product documentation would be
+**    appreciated but is not required.
+** 2. Altered source versions must be plainly marked as such, and must not be
+**    misrepresented as being the original software.
+** 3. This notice may not be removed or altered from any source distribution.
+**
+** Created on: 2026-03-06T09:02:59
+** Author: Sylvain Fargier <fargier.sylvain@gmail.com>
+*/
+
+use std::collections::VecDeque;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, Weak};
+use std::time::Duration;
+
+use tokio::{sync::RwLock, task::{self, JoinHandle}};
+use tower_lsp::{Client, lsp_types::{MessageType, Url}};
+
+use crate::CoverageReport;
+
+#[derive(Debug)]
+pub struct CoverageLanguageServer {
+    pub context: Arc<CoverageLanguageServerContext>,
+}
+
+impl CoverageLanguageServer {
+    pub fn new(client: Client) -> Self {
+        Self {
+            context: CoverageLanguageServerContext::new(client),
+        }
+    }
+}
+
+impl std::ops::Deref for CoverageLanguageServer {
+    type Target = CoverageLanguageServerContext;
+
+    fn deref(&self) -> &Self::Target {
+        &self.context
+    }
+}
+
+#[derive(Debug)]
+pub struct CoverageLanguageServerContext {
+    pub client: Client,
+    pub root_uri: RwLock<Url>,
+    pub report: RwLock<Option<CoverageReport>>,
+    join_handle: Mutex<Option<JoinHandle<()>>>,
+}
+
+impl CoverageLanguageServerContext {
+    pub fn new(client: Client) -> Arc<Self> {
+        let ret = Arc::new(Self {
+            client,
+            root_uri: RwLock::new(
+                Url::from_directory_path(std::env::current_dir().unwrap()).unwrap(),
+            ),
+            report: Default::default(),
+            join_handle: Default::default(),
+        });
+
+        {
+            let weak = Arc::downgrade(&ret);
+            ret.join_handle
+                .lock()
+                .unwrap()
+                .replace(task::spawn(CoverageLanguageServerContext::run(weak)));
+        }
+        ret
+    }
+
+    async fn run(weak: Weak<Self>) {
+        while let Some(ctx) = weak.upgrade() {
+            ctx.update().await;
+
+            drop(ctx);
+            tokio::time::sleep(Duration::from_secs(3)).await;
+        }
+    }
+
+    pub async fn update(&self) {
+        if let Some(file) = self.find_lcov_file().await
+            && self
+                .report
+                .read()
+                .await
+                .as_ref()
+                .is_none_or(|stamp| stamp.path != file || stamp.is_outdated())
+        {
+            self.client
+                .log_message(MessageType::INFO, "loading file")
+                .await;
+            let mut report = match CoverageReport::try_from(file) {
+                Ok(report) => report,
+                Err(err) => {
+                    self.client
+                        .log_message(
+                            MessageType::ERROR,
+                            format!("failed to load report: {err:?}"),
+                        )
+                        .await;
+                    return;
+                }
+            };
+            let root_uri = self.root_uri.read().await.clone();
+
+            if let Err(err) = report.load(&root_uri) {
+                self.client
+                    .log_message(
+                        MessageType::ERROR,
+                        format!("failed to parse report: {err:?}"),
+                    )
+                    .await
+            } else {
+                self.client
+                    .log_message(MessageType::INFO, format!("loaded: {:?}", report.db.keys()))
+                    .await;
+                self.report.write().await.replace(report);
+            }
+        }
+    }
+
+    pub async fn find_lcov_file(&self) -> Option<PathBuf> {
+        self.client
+            .log_message(MessageType::INFO, "crawling for coverage file")
+            .await;
+        let mut dir_stack = VecDeque::with_capacity(64);
+        dir_stack.push_back(PathBuf::from(self.root_uri.read().await.path()));
+
+        while let Some(path) = dir_stack.pop_front() {
+            let mut reader = match tokio::fs::read_dir(path).await.ok() {
+                Some(reader) => reader,
+                None => {
+                    self.client
+                        .log_message(MessageType::WARNING, "failed to read_dir: {path:?}")
+                        .await;
+                    continue;
+                }
+            };
+            while let Ok(Some(entry)) = reader.next_entry().await {
+                let path = entry.path();
+                if path.is_dir() {
+                    dir_stack.push_back(path);
+                } else if path.extension().is_some_and(|ext| ext == "info") {
+                    self.client
+                        .log_message(MessageType::INFO, format!("coverage file found: {path:?}"))
+                        .await;
+                    return Some(path);
+                }
+            }
+        }
+        None
+    }
+}
+
+impl Drop for CoverageLanguageServerContext {
+    fn drop(&mut self) {
+        if let Some(join_handle) = self.join_handle.lock().unwrap().take() {
+            join_handle.abort();
+        }
+    }
+}

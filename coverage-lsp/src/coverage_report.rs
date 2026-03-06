@@ -26,7 +26,8 @@ use std::{collections::HashMap, path::PathBuf, time::SystemTime};
 
 use lcov_parser::{FromFile, LCOVParser};
 use tower_lsp::lsp_types::{
-    ColorInformation, DiagnosticSeverity, DocumentDiagnosticReport, FullDocumentDiagnosticReport, RelatedFullDocumentDiagnosticReport, Url, WorkspaceDiagnosticReportResult
+    ColorInformation, DiagnosticSeverity, DocumentDiagnosticReport, FullDocumentDiagnosticReport,
+    RelatedFullDocumentDiagnosticReport, Url, WorkspaceDiagnosticReportResult,
 };
 use tower_lsp::{jsonrpc::Result, lsp_types::WorkspaceDiagnosticReport};
 
@@ -70,6 +71,11 @@ impl CoverageReport {
     }
 
     pub fn load(&mut self, root_uri: &Url) -> Result<()> {
+        self.mtime = self
+            .path
+            .metadata()
+            .and_then(|m| m.modified())
+            .map_err(|err| make_error(format!("failed update metadata: {err:?}")))?;
         let mut parser = match LCOVParser::from_file(&self.path) {
             Ok(parser) => parser,
             Err(err) => {

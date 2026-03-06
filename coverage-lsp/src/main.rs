@@ -21,56 +21,23 @@
 */
 
 use std::borrow::Cow;
-use std::collections::VecDeque;
 
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex, Weak};
-use std::time::Duration;
-
-use tokio::sync::RwLock;
-use tokio::task::{self, JoinHandle};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
-use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tower_lsp::{LanguageServer, LspService, Server};
 use tracing::Level;
 use tracing_subscriber::{EnvFilter, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod file_coverage;
-use file_coverage::FileCoverage;
+pub use file_coverage::FileCoverage;
 
 mod coverage_report;
-use coverage_report::CoverageReport;
+pub use coverage_report::CoverageReport;
+
+mod coverage_lsp;
+pub use coverage_lsp::CoverageLanguageServer;
 
 pub const LSP_NAME: &str = "coverage-lsp";
-
-#[derive(Debug)]
-struct CoverageLanguageServer {
-    context: Arc<CoverageLanguageServerContext>,
-}
-
-impl CoverageLanguageServer {
-    pub fn new(client: Client) -> Self {
-        Self {
-            context: CoverageLanguageServerContext::new(client),
-        }
-    }
-}
-
-impl std::ops::Deref for CoverageLanguageServer {
-    type Target = CoverageLanguageServerContext;
-
-    fn deref(&self) -> &Self::Target {
-        &self.context
-    }
-}
-
-#[derive(Debug)]
-pub struct CoverageLanguageServerContext {
-    client: Client,
-    root_uri: RwLock<Url>,
-    report: RwLock<Option<CoverageReport>>,
-    join_handle: Mutex<Option<JoinHandle<()>>>,
-}
 
 pub fn make_error<T>(msg: T) -> Error
 where
@@ -79,119 +46,6 @@ where
     let mut err = Error::new(ErrorCode::ServerError(0));
     err.message = msg.into();
     err
-}
-
-impl CoverageLanguageServerContext {
-    pub fn new(client: Client) -> Arc<Self> {
-        let ret = Arc::new(Self {
-            client,
-            root_uri: RwLock::new(
-                Url::from_directory_path(std::env::current_dir().unwrap()).unwrap(),
-            ),
-            report: Default::default(),
-            join_handle: Default::default(),
-        });
-
-        {
-            let weak = Arc::downgrade(&ret);
-            ret.join_handle
-                .lock()
-                .unwrap()
-                .replace(task::spawn(CoverageLanguageServerContext::run(weak)));
-        }
-        ret
-    }
-
-    async fn run(weak: Weak<Self>) {
-        while let Some(ctx) = weak.upgrade() {
-            ctx.update().await;
-
-            drop(ctx);
-            tokio::time::sleep(Duration::from_secs(3)).await;
-        }
-    }
-
-    async fn update(&self) {
-        if let Some(file) = self.find_lcov_file().await
-            && self
-                .report
-                .read()
-                .await
-                .as_ref()
-                .is_none_or(|stamp| stamp.path != file || stamp.is_outdated())
-        {
-            self.client
-                .log_message(MessageType::INFO, "loading file")
-                .await;
-            let mut report = match CoverageReport::try_from(file) {
-                Ok(report) => report,
-                Err(err) => {
-                    self.client
-                        .log_message(
-                            MessageType::ERROR,
-                            format!("failed to load report: {err:?}"),
-                        )
-                        .await;
-                    return;
-                }
-            };
-            let root_uri = self.root_uri.read().await.clone();
-
-            if let Err(err) = report.load(&root_uri) {
-                self.client
-                    .log_message(
-                        MessageType::ERROR,
-                        format!("failed to parse report: {err:?}"),
-                    )
-                    .await
-            } else {
-                self.client
-                    .log_message(MessageType::INFO, format!("loaded: {:?}", report.db.keys()))
-                    .await;
-                self.report.write().await.replace(report);
-            }
-        }
-    }
-
-    async fn find_lcov_file(&self) -> Option<PathBuf> {
-        self.client
-            .log_message(MessageType::INFO, "crawling for coverage file")
-            .await;
-        let mut dir_stack = VecDeque::with_capacity(64);
-        dir_stack.push_back(PathBuf::from(self.root_uri.read().await.path()));
-
-        while let Some(path) = dir_stack.pop_front() {
-            let mut reader = match tokio::fs::read_dir(path).await.ok() {
-                Some(reader) => reader,
-                None => {
-                    self.client
-                        .log_message(MessageType::WARNING, "failed to read_dir: {path:?}")
-                        .await;
-                    continue;
-                }
-            };
-            while let Ok(Some(entry)) = reader.next_entry().await {
-                let path = entry.path();
-                if path.is_dir() {
-                    dir_stack.push_back(path);
-                } else if path.extension().is_some_and(|ext| ext == "info") {
-                    self.client
-                        .log_message(MessageType::INFO, format!("coverage file found: {path:?}"))
-                        .await;
-                    return Some(path);
-                }
-            }
-        }
-        None
-    }
-}
-
-impl Drop for CoverageLanguageServerContext {
-    fn drop(&mut self) {
-        if let Some(join_handle) = self.join_handle.lock().unwrap().take() {
-            join_handle.abort();
-        }
-    }
 }
 
 #[tower_lsp::async_trait]
@@ -269,7 +123,7 @@ impl LanguageServer for CoverageLanguageServer {
         self.client
             .log_message(MessageType::INFO, "server initialized!")
             .await;
-        self.context.update().await;
+        self.update().await;
     }
 
     async fn shutdown(&self) -> Result<()> {
