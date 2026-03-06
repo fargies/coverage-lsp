@@ -37,6 +37,9 @@ pub use coverage_report::CoverageReport;
 mod coverage_lsp;
 pub use coverage_lsp::CoverageLanguageServer;
 
+mod settings;
+pub use settings::{LSP_SETTINGS, Settings};
+
 pub const LSP_NAME: &str = "coverage-lsp";
 
 pub fn make_error<T>(msg: T) -> Error
@@ -95,6 +98,12 @@ impl LanguageServer for CoverageLanguageServer {
         self.client
             .log_message(MessageType::INFO, "server initialized!")
             .await;
+
+        if let Some(config) = self.get_configuration().await
+            && let Some(value) = config.get(LSP_NAME)
+        {
+            *LSP_SETTINGS.write().unwrap() = Settings::from(value);
+        }
         self.update().await;
         self.context.start();
     }
@@ -155,18 +164,34 @@ impl LanguageServer for CoverageLanguageServer {
             .map(|report| report.create_document_color(&params.text_document.uri))
         {
             Some(report) => Ok(report),
+
             None => Ok(Vec::default()),
         }
     }
 
     #[cfg(feature = "notifications")]
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.open_docs.write().await.insert(params.text_document.uri);
+        self.open_docs
+            .write()
+            .await
+            .insert(params.text_document.uri);
     }
 
     #[cfg(feature = "notifications")]
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        self.open_docs.write().await.remove(&params.text_document.uri);
+        self.open_docs
+            .write()
+            .await
+            .remove(&params.text_document.uri);
+    }
+
+    async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
+        if let Some(value) = params.settings.get(LSP_NAME) {
+            *LSP_SETTINGS.write().unwrap() = Settings::from(value);
+
+            #[cfg(feature = "notifications")]
+            self.send_update_notification().await;
+        }
     }
 }
 
@@ -206,7 +231,10 @@ mod tests {
     #[tokio::test]
     async fn parse() -> Result<()> {
         let (service, _) = LspService::new(CoverageLanguageServer::new);
-        service.inner().initialize(InitializeParams::default()).await?;
+        service
+            .inner()
+            .initialize(InitializeParams::default())
+            .await?;
         service.inner().initialized(InitializedParams {}).await;
         assert!(service.inner().report.read().await.is_some());
         Ok(())

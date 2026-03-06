@@ -25,7 +25,7 @@ use tower_lsp::lsp_types::{
     Color, ColorInformation, Diagnostic, DiagnosticSeverity, FullDocumentDiagnosticReport, Position, Range, Url, WorkspaceDocumentDiagnosticReport, WorkspaceFullDocumentDiagnosticReport
 };
 
-use crate::LSP_NAME;
+use crate::{LSP_NAME, LSP_SETTINGS};
 
 #[derive(Debug)]
 pub struct LineCoverageInfo {
@@ -124,11 +124,15 @@ impl FileCoverage {
 
     pub fn create_document_color(&self) -> Vec<ColorInformation> {
         let mut ret = Vec::with_capacity(self.coverage.len());
+        let (hit_color, miss_color) = {
+            let settings = LSP_SETTINGS.read().unwrap();
+            (settings.hit, settings.miss)
+        };
         for cov in self.coverage.iter() {
-            if cov.count != 0 {
-                ret.push(ColorInformation { range: cov.range(), color: Color { red: 0.0, green: 1.0, blue: 0.0, alpha: 0.1 }});
-            } else {
-                ret.push(ColorInformation { range: cov.range(), color: Color { red: 1.0, green: 0.0, blue: 0.0, alpha: 0.1 }});
+            if cov.count != 0 && let Some(color) = hit_color {
+                ret.push(ColorInformation { range: cov.range(), color });
+            } else if cov.count == 0 && let Some(color) = miss_color {
+                ret.push(ColorInformation { range: cov.range(), color });
             }
         }
         ret

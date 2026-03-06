@@ -6,6 +6,7 @@ license = "Zlib"
 
 [dependencies]
 lcov-parser = "3.2.2"
+regex = "1.12.3"
 serde_json = "1.0.149"
 tokio = { version = "1.50.0", features = ["io-std", "macros", "rt-multi-thread", "fs", "time"] }
 tower-lsp = "0.20.0"

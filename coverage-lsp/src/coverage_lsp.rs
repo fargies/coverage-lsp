@@ -26,11 +26,12 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
+use serde_json::Value;
 use tokio::{
     sync::RwLock,
     task::{self, JoinHandle},
 };
-use tower_lsp::lsp_types::{Position, Range, TextEdit, WorkspaceEdit};
+use tower_lsp::lsp_types::{ConfigurationItem, Position, Range, TextEdit, WorkspaceEdit};
 use tower_lsp::{
     Client,
     lsp_types::{MessageType, Url},
@@ -138,7 +139,7 @@ impl CoverageLanguageServerContext {
 
     /// Edit opened documents to trigger a coloration update
     #[cfg(feature = "notifications")]
-    async fn send_update_notification(&self) {
+    pub async fn send_update_notification(&self) {
         let opened = self.open_docs.read().await.clone();
         let mut changes = HashMap::with_capacity(1);
         let edit = Vec::from([TextEdit {
@@ -149,7 +150,13 @@ impl CoverageLanguageServerContext {
         // if we update all docs at once, zed will open an "LSP Edits" tab
         // notifying editors one by ones silences it.
         for doc in opened.into_iter() {
-            if self.report.read().await.as_ref().is_none_or(|report| !report.db.contains_key(&doc)) {
+            if self
+                .report
+                .read()
+                .await
+                .as_ref()
+                .is_none_or(|report| !report.db.contains_key(&doc))
+            {
                 continue;
             }
             changes.clear();
@@ -224,6 +231,14 @@ impl CoverageLanguageServerContext {
             }
         }
         None
+    }
+
+    pub async fn get_configuration(&self) -> Option<Value> {
+        self.client
+            .configuration(vec![ConfigurationItem::default()])
+            .await
+            .ok()
+            .and_then(|mut v| v.pop())
     }
 }
 
