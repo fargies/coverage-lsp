@@ -149,6 +149,9 @@ impl CoverageLanguageServerContext {
         // if we update all docs at once, zed will open an "LSP Edits" tab
         // notifying editors one by ones silences it.
         for doc in opened.into_iter() {
+            if self.report.read().await.as_ref().is_none_or(|report| !report.db.contains_key(&doc)) {
+                continue;
+            }
             changes.clear();
             changes.insert(doc.clone(), edit.clone());
             if let Err(err) = self
