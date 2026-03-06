@@ -64,7 +64,8 @@ impl LanguageServer for CoverageLanguageServer {
                 version: Some(env!("CARGO_PKG_VERSION").into()),
             }),
             capabilities: ServerCapabilities {
-                /// Track opened/closed documents to send notifications on coverage file change
+                // Track opened/closed documents to send notifications on coverage file change
+                #[cfg(feature = "notifications")]
                 text_document_sync: Some(TextDocumentSyncCapability::Options(
                     TextDocumentSyncOptions {
                         open_close: Some(true),
@@ -72,9 +73,9 @@ impl LanguageServer for CoverageLanguageServer {
                         ..Default::default()
                     },
                 )),
-                /// Send coverage info as colors
+                #[cfg(feature = "color_provider")]
                 color_provider: Some(ColorProviderCapability::Simple(true)),
-                #[cfg(feature = "diagnostics")]
+                #[cfg(feature = "diagnostic_provider")]
                 diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
                     DiagnosticOptions {
                         identifier: Some(LSP_NAME.to_string()),
@@ -101,7 +102,7 @@ impl LanguageServer for CoverageLanguageServer {
         Ok(())
     }
 
-    #[cfg(feature = "diagnostics")]
+    #[cfg(feature = "diagnostic_provider")]
     async fn workspace_diagnostic(
         &self,
         _params: WorkspaceDiagnosticParams,
@@ -112,7 +113,7 @@ impl LanguageServer for CoverageLanguageServer {
         }
     }
 
-    #[cfg(feature = "diagnostics")]
+    #[cfg(feature = "diagnostic_provider")]
     async fn diagnostic(
         &self,
         params: DocumentDiagnosticParams,
@@ -142,6 +143,7 @@ impl LanguageServer for CoverageLanguageServer {
         }
     }
 
+    #[cfg(feature = "color_provider")]
     async fn document_color(&self, params: DocumentColorParams) -> Result<Vec<ColorInformation>> {
         match self
             .context
@@ -156,10 +158,12 @@ impl LanguageServer for CoverageLanguageServer {
         }
     }
 
+    #[cfg(feature = "notifications")]
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         self.open_docs.write().await.insert(params.text_document.uri);
     }
 
+    #[cfg(feature = "notifications")]
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         self.open_docs.write().await.remove(&params.text_document.uri);
     }

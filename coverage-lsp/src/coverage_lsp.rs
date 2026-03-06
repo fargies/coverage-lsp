@@ -137,12 +137,14 @@ impl CoverageLanguageServerContext {
                     .log_message(MessageType::INFO, format!("loaded: {:?}", report.db.keys()))
                     .await;
                 self.report.write().await.replace(report);
+                #[cfg(feature = "notifications")]
                 self.send_update_notification().await;
             }
         }
     }
 
     /// Edit opened documents to trigger a coloration update
+    #[cfg(feature = "notifications")]
     async fn send_update_notification(&self) {
         let mut changes = HashMap::new();
         let edit = Vec::from([TextEdit {
