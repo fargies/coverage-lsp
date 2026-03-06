@@ -70,7 +70,7 @@ pub struct CoverageLanguageServerContext {
 
 impl CoverageLanguageServerContext {
     pub fn new(client: Client) -> Arc<Self> {
-        let ret = Arc::new(Self {
+        Arc::new(Self {
             client,
             root_uri: RwLock::new(
                 Url::from_directory_path(std::env::current_dir().unwrap()).unwrap(),
@@ -78,16 +78,14 @@ impl CoverageLanguageServerContext {
             report: Default::default(),
             open_docs: Default::default(),
             join_handle: Default::default(),
-        });
+        })
+    }
 
-        {
-            let weak = Arc::downgrade(&ret);
-            ret.join_handle
-                .lock()
-                .unwrap()
-                .replace(task::spawn(CoverageLanguageServerContext::run(weak)));
-        }
-        ret
+    pub fn start(self: &Arc<Self>) {
+        self.join_handle.lock().unwrap().get_or_insert_with(|| {
+            let weak = Arc::downgrade(self);
+            task::spawn(CoverageLanguageServerContext::run(weak))
+        });
     }
 
     async fn run(weak: Weak<Self>) {
@@ -100,16 +98,14 @@ impl CoverageLanguageServerContext {
     }
 
     pub async fn update(&self) {
-        if let Some(file) = self.find_lcov_file().await
-            && self
-                .report
-                .read()
-                .await
-                .as_ref()
-                .is_none_or(|stamp| stamp.path != file || stamp.is_outdated())
-        {
+        let file = match self.report.read().await.as_ref() {
+            Some(report) if report.is_outdated() => Some(report.path.clone()),
+            Some(_) => None,
+            None => self.find_lcov_file().await,
+        };
+        if let Some(file) = file {
             self.client
-                .log_message(MessageType::INFO, "loading file")
+                .log_message(MessageType::INFO, format!("(re)loading file: {file:?}"))
                 .await;
             let mut report = match CoverageReport::try_from(file) {
                 Ok(report) => report,
@@ -133,9 +129,6 @@ impl CoverageLanguageServerContext {
                     )
                     .await
             } else {
-                self.client
-                    .log_message(MessageType::INFO, format!("loaded: {:?}", report.db.keys()))
-                    .await;
                 self.report.write().await.replace(report);
                 #[cfg(feature = "notifications")]
                 self.send_update_notification().await;
@@ -146,50 +139,58 @@ impl CoverageLanguageServerContext {
     /// Edit opened documents to trigger a coloration update
     #[cfg(feature = "notifications")]
     async fn send_update_notification(&self) {
-        let mut changes = HashMap::new();
+        let opened = self.open_docs.read().await.clone();
+        let mut changes = HashMap::with_capacity(1);
         let edit = Vec::from([TextEdit {
             range: Range::new(Position::new(0, 0), Position::new(0, 0)),
             new_text: " ".into(),
         }]);
-        for f in self.open_docs.read().await.iter() {
-            changes.insert(f.clone(), edit.clone());
-        }
-        if let Err(err) = self
-            .client
-            .apply_edit(WorkspaceEdit {
-                changes: Some(changes.clone()),
-                ..Default::default()
-            })
-            .await
-        {
-            tracing::error!(?err, "WorkspaceEdit error");
-            return;
-        }
 
-        for (_, change) in changes.iter_mut() {
-            let text_edit = change.first_mut().unwrap();
-            text_edit.range.end.character = 1;
-            text_edit.new_text = String::default();
-        }
-        /* for some reason if we send both edits at once the delete is done before write */
-        if let Err(err) = self
-            .client
-            .apply_edit(WorkspaceEdit {
-                changes: Some(changes),
-                ..Default::default()
-            })
-            .await
-        {
-            tracing::error!(?err, "WorkspaceEdit error");
+        // if we update all docs at once, zed will open an "LSP Edits" tab
+        // notifying editors one by ones silences it.
+        for doc in opened.into_iter() {
+            changes.clear();
+            changes.insert(doc.clone(), edit.clone());
+            if let Err(err) = self
+                .client
+                .apply_edit(WorkspaceEdit {
+                    changes: Some(changes.clone()),
+                    ..Default::default()
+                })
+                .await
+            {
+                tracing::error!(?err, "WorkspaceEdit error");
+                return;
+            }
+
+            for (_, change) in changes.iter_mut() {
+                let text_edit = change.first_mut().unwrap();
+                text_edit.range.end.character = 1;
+                text_edit.new_text = String::default();
+            }
+            /* for some reason if we send both edits at once the delete is done before write */
+            if let Err(err) = self
+                .client
+                .apply_edit(WorkspaceEdit {
+                    changes: Some(changes.clone()),
+                    ..Default::default()
+                })
+                .await
+            {
+                tracing::error!(?err, "WorkspaceEdit error");
+                return;
+            }
         }
     }
 
+    /// Crawl the workspace to find an '*.info' file
     pub async fn find_lcov_file(&self) -> Option<PathBuf> {
         self.client
             .log_message(MessageType::INFO, "crawling for coverage file")
             .await;
         let mut dir_stack = VecDeque::with_capacity(64);
-        dir_stack.push_back(PathBuf::from(self.root_uri.read().await.path()));
+        let root_path = self.root_uri.read().await.path().to_string();
+        dir_stack.push_back(PathBuf::from(&root_path));
 
         while let Some(path) = dir_stack.pop_front() {
             let mut reader = match tokio::fs::read_dir(path).await.ok() {
@@ -207,7 +208,13 @@ impl CoverageLanguageServerContext {
                     dir_stack.push_back(path);
                 } else if path.extension().is_some_and(|ext| ext == "info") {
                     self.client
-                        .log_message(MessageType::INFO, format!("coverage file found: {path:?}"))
+                        .show_message(
+                            MessageType::INFO,
+                            format!(
+                                "coverage file found: {:?}",
+                                path.strip_prefix(&root_path).unwrap_or(&path)
+                            ),
+                        )
                         .await;
                     return Some(path);
                 }

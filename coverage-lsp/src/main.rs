@@ -96,6 +96,7 @@ impl LanguageServer for CoverageLanguageServer {
             .log_message(MessageType::INFO, "server initialized!")
             .await;
         self.update().await;
+        self.context.start();
     }
 
     async fn shutdown(&self) -> Result<()> {
@@ -205,8 +206,9 @@ mod tests {
     #[tokio::test]
     async fn parse() -> Result<()> {
         let (service, _) = LspService::new(CoverageLanguageServer::new);
-        // let report = service.inner().parse_report("lcov.info").await?;
-        // tracing::trace!(report = ?report);
+        service.inner().initialize(InitializeParams::default()).await?;
+        service.inner().initialized(InitializedParams {}).await;
+        assert!(service.inner().report.read().await.is_some());
         Ok(())
     }
 }
