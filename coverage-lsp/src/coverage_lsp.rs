@@ -24,7 +24,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
-use std::time::Duration;
 
 use serde_json::Value;
 use tokio::{
@@ -37,7 +36,7 @@ use tower_lsp::{
     lsp_types::{MessageType, Url},
 };
 
-use crate::CoverageReport;
+use crate::{CoverageReport, LSP_SETTINGS};
 
 #[derive(Debug)]
 pub struct CoverageLanguageServer {
@@ -102,17 +101,40 @@ impl CoverageLanguageServerContext {
             ctx.update().await;
 
             drop(ctx);
-            tokio::time::sleep(Duration::from_secs(3)).await;
+            let interval = LSP_SETTINGS.read().unwrap().interval;
+            tokio::time::sleep(interval).await;
+        }
+    }
+
+    /// get file to parse
+    ///
+    /// returns [None] if there's nothing to parse or if the report is already
+    /// up to date.
+    async fn get_update_file(&self) -> Option<PathBuf> {
+        let setting_file_guard = LSP_SETTINGS
+            .read()
+            .unwrap()
+            .lcov_file
+            .as_ref()
+            .map(Arc::clone);
+        let setting_file = setting_file_guard.as_ref().map(|v| v.as_ref());
+        match self.report.read().await.as_ref() {
+            Some(report)
+                if setting_file.is_some_and(|setting_file| setting_file != &report.path) =>
+            {
+                Some(setting_file.unwrap().clone())
+            }
+            Some(report) if report.is_outdated() => Some(report.path.clone()),
+            Some(_) => None,
+            None => match setting_file {
+                Some(file) => Some(file.clone()),
+                None => self.find_lcov_file().await,
+            },
         }
     }
 
     pub async fn update(&self) {
-        let file = match self.report.read().await.as_ref() {
-            Some(report) if report.is_outdated() => Some(report.path.clone()),
-            Some(_) => None,
-            None => self.find_lcov_file().await,
-        };
-        if let Some(file) = file {
+        if let Some(file) = self.get_update_file().await {
             self.client
                 .log_message(MessageType::INFO, format!("(re)loading file: {file:?}"))
                 .await;
@@ -162,12 +184,13 @@ impl CoverageLanguageServerContext {
         // if we update all docs at once, zed will open an "LSP Edits" tab
         // notifying editors one by ones silences it.
         for doc in opened.into_iter() {
-            if !forced && self
-                .report
-                .read()
-                .await
-                .as_ref()
-                .is_none_or(|report| !report.db.contains_key(&doc))
+            if !forced
+                && self
+                    .report
+                    .read()
+                    .await
+                    .as_ref()
+                    .is_none_or(|report| !report.db.contains_key(&doc))
             {
                 continue;
             }

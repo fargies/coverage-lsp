@@ -22,6 +22,7 @@
 
 use std::borrow::Cow;
 
+use serde_json::Value;
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{LanguageServer, LspService, Server};
@@ -99,10 +100,20 @@ impl LanguageServer for CoverageLanguageServer {
             .log_message(MessageType::INFO, "server initialized!")
             .await;
 
-        if let Some(config) = self.get_configuration().await
-            && let Some(value) = config.get(LSP_NAME)
+        if let Some(mut config) = self.get_configuration().await
+            && let Some(value) = config.get_mut(LSP_NAME).map(Value::take)
         {
-            *LSP_SETTINGS.write().unwrap() = Settings::from(value);
+            match serde_json::from_value::<Settings>(value) {
+                Ok(settings) => *LSP_SETTINGS.write().unwrap() = settings,
+                Err(err) => {
+                    self.client
+                        .log_message(
+                            MessageType::ERROR,
+                            format!("failed to parse settings: {err:?}"),
+                        )
+                        .await
+                }
+            }
         }
         self.update().await;
         self.context.start();
@@ -188,11 +199,23 @@ impl LanguageServer for CoverageLanguageServer {
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
-        if let Some(value) = params.settings.get(LSP_NAME) {
-            *LSP_SETTINGS.write().unwrap() = Settings::from(value);
-
-            #[cfg(feature = "notifications")]
-            self.send_update_notification(false).await;
+        let mut params = params;
+        if let Some(value) = params.settings.get_mut(LSP_NAME).map(Value::take) {
+            match serde_json::from_value::<Settings>(value) {
+                Ok(settings) => {
+                    *LSP_SETTINGS.write().unwrap() = settings;
+                    #[cfg(feature = "notifications")]
+                    self.send_update_notification(false).await;
+                }
+                Err(err) => {
+                    self.client
+                        .log_message(
+                            MessageType::ERROR,
+                            format!("failed to parse settings: {err:?}"),
+                        )
+                        .await
+                }
+            }
         }
     }
 }

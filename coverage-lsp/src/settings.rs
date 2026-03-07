@@ -21,41 +21,30 @@
 ** Author: Sylvain Fargier <fargier.sylvain@gmail.com>
 */
 
-use std::sync::{LazyLock, RwLock};
+use std::{path::PathBuf, sync::{Arc, RwLock}, time::Duration};
 
-use serde_json::Value;
+use ::serde::{Deserialize, Serialize};
 use tower_lsp::lsp_types::Color;
-use regex::Regex;
+
+mod serde;
 
 pub static LSP_SETTINGS: RwLock<Settings> = RwLock::new(Settings::new());
-static COLOR_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new("#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})?").unwrap());
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
+    #[serde(with = "serde")]
     pub hit: Option<Color>,
+    #[serde(with = "serde")]
     pub miss: Option<Color>,
+    #[serde(with = "humantime_serde")]
+    pub interval: Duration,
+    pub lcov_file: Option<Arc<PathBuf>>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-fn parse_color(value: &str) -> Option<Color> {
-    COLOR_RE.captures(value).map(|captures| Color {
-            red: captures.get(1).map(|v| u8::from_str_radix(v.as_str(), 16).unwrap() as f32 / 255f32).unwrap(),
-            green: captures.get(2).map(|v| u8::from_str_radix(v.as_str(), 16).unwrap() as f32 / 255f32).unwrap(),
-            blue: captures.get(3).map(|v| u8::from_str_radix(v.as_str(), 16).unwrap() as f32 / 255f32).unwrap(),
-            alpha: captures.get(4).map(|v| u8::from_str_radix(v.as_str(), 16).unwrap() as f32 / 255f32).unwrap_or(1.0),
-        })
-}
-
-fn update_color(target: &mut Option<Color>, value: &Value) {
-    match value {
-        Value::String(value) => if let Some(color) = parse_color(value) { *target = Some(color); },
-        Value::Null => *target = None,
-        value => tracing::error!("invalid setting value: {value:?}")
     }
 }
 
@@ -74,25 +63,28 @@ impl Settings {
                 blue: 0.0,
                 alpha: 0.1,
             }),
-        }
-    }
-
-    pub fn update(&mut self, value: &Value) {
-        if let Some(obj) = value.as_object() {
-            if let Some(value) = obj.get("hit") {
-                update_color(&mut self.hit, value);
-            }
-            if let Some(value) = obj.get("miss") {
-                update_color(&mut self.miss, value);
-            }
+            interval: Duration::from_secs(3),
+            lcov_file: None,
         }
     }
 }
 
-impl From<&Value> for Settings {
-    fn from(value: &Value) -> Self {
-        let mut settings = Settings::new();
-        settings.update(value);
-        settings
+#[cfg(test)]
+mod tests {
+    use std::{path::PathBuf, sync::Arc};
+
+    use super::Settings;
+
+    #[test]
+    fn serde() -> serde_json::Result<()> {
+        let settings: Settings = serde_json::from_str(
+            r#"{ "hit": null, "miss": "red", "interval": "20s", "lcov_file": "./lcov.info" }"#,
+        )?;
+        let settings: Settings = serde_json::from_str(serde_json::to_string(&settings)?.as_str())?;
+        assert_eq!(settings.lcov_file, Some(Arc::new(PathBuf::from("./lcov.info"))));
+        assert_eq!(settings.interval, std::time::Duration::from_secs(20));
+
+        serde_json::from_str::<Settings>("{}")?;
+        Ok(())
     }
 }
