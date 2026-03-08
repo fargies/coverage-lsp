@@ -1,11 +1,11 @@
 # Code Coverage Language Server
 
-[![CI](https://github.com/fargies/coverage-lsp/actions/workflows/release.yml/badge.svg)](https://github.com/fargies/coverage-lsp/actions/workflows/release.yml)
 [![Crates.io](https://img.shields.io/crates/v/coverage-lsp.svg)](https://crates.io/crates/coverage-lsp)
-[![Docs.rs](https://docs.rs/coverage-lsp/badge.svg)](https://docs.rs/coverage-lsp)
-[![License](https://img.shields.io/github/license/fargies/coverage-lsp)](LICENSE)
+[![CI](https://github.com/fargies/coverage-lsp/actions/workflows/release.yml/badge.svg)](https://github.com/fargies/coverage-lsp/actions/workflows/release.yml)
+[![License](https://img.shields.io/badge/license-Zlib-green)](LICENSE)
+
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=githubsponsors)](https://github.com/sponsors/fargies)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-fargies-FFDD00?logo=buymeacoffee&logoColor=000000)](https://www.buymeacoffee.com/fargies)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/fargies)
 
 This project implements a Code Coverage
 [Language Server](https://microsoft.github.io/language-server-protocol/) that
