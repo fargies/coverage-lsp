@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - "coverage-lsp-v*"
 
 jobs:
   # Build sources for every OS
@@ -56,7 +56,7 @@ jobs:
       - uses: olegtarasov/get-tag@v2.1
         id: tagName
         with:
-          tagRegex: "v(?<version>.*)"
+          tagRegex: "coverage-lsp-v(?<version>.*)"
 
       # Cache files between builds
       - name: Setup | Cache Cargo
