@@ -3,7 +3,7 @@ description = "Code Coverage Language Server"
 repository = "https://github.com/fargies/coverage-lsp"
 readme = "../README.md"
 name = "coverage-lsp"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2024"
 license = "Zlib"
 
