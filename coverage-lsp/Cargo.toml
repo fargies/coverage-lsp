@@ -1,4 +1,6 @@
 [package]
+description = "Code Coverage Language Server"
+repository = "https://github.com/fargies/coverage-lsp"
 name = "coverage-lsp"
 version = "0.1.0"
 edition = "2024"
@@ -26,3 +28,6 @@ diagnostic_provider = []
 notifications = []
 # Implement coverage display as coloring
 color_provider = []
+
+[package.metadata.release]
+pre-release-hook = ["git", "cliff", "-o", "../ChangeLog.md", "--tag", "{{version}}" ]
