@@ -1,0 +1,23 @@
+name: Test
+on:
+  push
+
+jobs:
+  github_test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v4
+      - name: Setup | Rust
+        uses: actions-rs/toolchain@v1.0.7
+        with:
+          toolchain: stable
+      - name: Build | Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --workspace
+          use-cross: ${{ matrix.os == 'ubuntu-latest' }}
+      - name: Test | Test
+        run: cargo test --workspace

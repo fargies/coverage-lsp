@@ -1,10 +1,8 @@
 # Code Coverage Language Server
 
-[![CI](https://github.com/fargies/coverage-lsp/actions/workflows/release.yml/badge.svg)](https://github.com/fargies/coverage-lsp/actions/workflows/release.yml)
 [![Crates.io](https://img.shields.io/crates/v/coverage-lsp.svg)](https://crates.io/crates/coverage-lsp)
 [![Docs.rs](https://docs.rs/coverage-lsp/badge.svg)](https://docs.rs/coverage-lsp)
 [![License](https://img.shields.io/github/license/fargies/coverage-lsp)](LICENSE)
-
 
 This project implements a Code Coverage
 [Language Server](https://microsoft.github.io/language-server-protocol/) that
