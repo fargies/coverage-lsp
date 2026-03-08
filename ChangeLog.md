@@ -1,4 +1,4 @@
-## [1.0.1] - 2026-03-08
+## [coverage-lsp-v1.0.1] - 2026-03-08
 
 ### 🚀 Features
 
@@ -22,4 +22,5 @@
 
 - First import
 - Enhance release workflow and docs
+- Release
 - Release
