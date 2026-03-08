@@ -1,37 +1,13 @@
 id = "coverage-lsp"
 name = "Coverage LSP"
-description = "Coverage Language Server Protocol."
+description = "Code Coverage Language Server"
 version = "0.0.1"
 schema_version = 1
 authors = ["Sylvain Fargier <fargier.sylvain@gmail.com>"]
-repository = "https://FIXME"
+repository = "https://github.com/fargies/coverage-lsp"
 
 [language_servers.coverage-lsp]
-name = "CoverageLSP Server"
-languages = [
-    "HTML",
-    "JSON",
-    "JSONC",
-    "JSON5",
-    "Tera",
-    "Tera (HTML)",
-    "Tera (CSS)",
-    "Tera (JSON)",
-    "Tera (YAML)",
-    "Tera (TOML)",
-    "ERB",
-    "JavaScript",
-    "TypeScript",
-    "CSS",
-    "JSX",
-    "TSX",
-    "Vue.js",
-    "YAML",
-    "TOML",
-    "XML",
-    "Rust",
-    "Ruby",
-    "Python",
-    "Go",
-]
+name = "Coverage LSP Server"
+# languages = ["c", "cpp", "go", "Rust", "javascript", "typescript"]
+languages = ["C", "C++", "Go", "Rust", "JavaScript", "TypeScript"]
 code_action_kinds = []

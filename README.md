@@ -16,7 +16,21 @@ Coverage information is surfaced using the
 [`textDocument/documentColor`](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_documentColor)
 request, allowing editors to visually highlight covered and uncovered lines.
 
-## Zed Editor Configuration
+## Zed-editor extension
+
+### Installation
+
+The extension may be installed from source, by cloning [fargies/coverage-lsp](https://github.com/fargies/coverage-lsp) repository and selecting the `zed-coverage-lsp` directory from "Install Dev Extension" menu.
+
+If not already found in path, the extension will download and install latest *coverage-lsp* server from [GitHub's project releases](https://github.com/fargies/coverage-lsp/releases).
+
+To install your own version of *coverage-lsp*, simply use:
+
+```bash
+cargo install coverage-lsp
+```
+
+### Configuration
 
 The server can be configured through the following settings.
 
@@ -53,7 +67,7 @@ Path to the [LCOV](https://lcov.readthedocs.io) coverage file to load.
 - If not specified, the server searches the workspace and uses the first
   `*.info` file it finds.
 
-## Example Configuration
+#### Example Configuration
 
 ```json
 {
@@ -68,4 +82,26 @@ Path to the [LCOV](https://lcov.readthedocs.io) coverage file to load.
     }
   }
 }
+```
+
+## Development
+
+```bash
+# remove downloaded releases
+rm -rf ~/.local/share/zed/extensions/work/coverage-lsp/*
+
+# Clone and build this project
+git clone https://github.com/fargies/coverage-lsp.git && cd coverage-lsp
+cargo build
+
+# Add `coverage-lsp` to your path
+export PATH=$PATH:$(path)/target/debug
+
+# Start `zeditor`
+zeditor
+
+# From the "Install Dev Extension" menu select `zed-coverage-lsp` directory
+
+# Don't forget to "Rebuild" the extension and/or "Restart" the language-server to
+# reflect changes
 ```
