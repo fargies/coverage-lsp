@@ -1,5 +1,5 @@
 [package]
-description = "Zeditor extension for coverage-lsp"
+description = "Zed editor extension for coverage-lsp"
 repository = "https://github.com/fargies/coverage-lsp"
 name = "zed-coverage-lsp"
 version = "1.0.0"
@@ -15,3 +15,7 @@ zed_extension_api = "^0.7.0"
 
 [package.metadata.release]
 publish = false
+pre-release-replacements = [
+    {file="extension.toml", search="^version = .*", replace="version = \"{{version}}\"", exactly=1},
+]
+pre-release-hook = ["git", "cliff", "-o", "ChangeLog.md", "--tag", "zed-coverage-lsp-{{version}}" ]

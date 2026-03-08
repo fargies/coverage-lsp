@@ -1,13 +1,12 @@
 id = "coverage-lsp"
 name = "Coverage LSP"
 description = "Code Coverage Language Server"
-version = "0.0.1"
+version = "1.0.0"
 schema_version = 1
 authors = ["Sylvain Fargier <fargier.sylvain@gmail.com>"]
 repository = "https://github.com/fargies/coverage-lsp"
 
 [language_servers.coverage-lsp]
 name = "Coverage LSP Server"
-# languages = ["c", "cpp", "go", "Rust", "javascript", "typescript"]
 languages = ["C", "C++", "Go", "Rust", "JavaScript", "TypeScript"]
 code_action_kinds = []

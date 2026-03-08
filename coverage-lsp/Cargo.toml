@@ -31,4 +31,4 @@ notifications = []
 color_provider = []
 
 [package.metadata.release]
-pre-release-hook = ["git", "cliff", "-o", "../ChangeLog.md", "--tag", "cargo-lsp-{{version}}" ]
+pre-release-hook = ["git", "cliff", "-o", "../ChangeLog.md", "--tag", "coverage-lsp-{{version}}" ]
