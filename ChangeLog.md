@@ -22,3 +22,4 @@
 
 - First import
 - Enhance release workflow and docs
+- Release
