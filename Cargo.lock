@@ -1330,7 +1330,7 @@ dependencies = [
 
 [[package]]
 name = "zed-coverage-lsp"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "serde_json",
  "zed_extension_api",

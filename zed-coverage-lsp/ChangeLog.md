@@ -1,4 +1,4 @@
-## [unreleased]
+## [zed-coverage-lsp-1.0.1] - 2026-03-08
 
 ### 🚀 Features
 
