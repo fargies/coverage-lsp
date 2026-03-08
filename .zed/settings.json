@@ -1,0 +1,8 @@
+{
+  "lsp": {
+    "coverage-lsp": {
+      // there are lcov.info files in "coverage-lsp/tests", let's hint for the file to process
+      "settings": { "lcov_file": "target/coverage/output/lcov.info" },
+    },
+  },
+}
