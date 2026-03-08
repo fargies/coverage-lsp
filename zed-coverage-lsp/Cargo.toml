@@ -16,6 +16,14 @@ zed_extension_api = "^0.7.0"
 [package.metadata.release]
 publish = false
 pre-release-replacements = [
-    {file="extension.toml", search="^version = .*", replace="version = \"{{version}}\"", exactly=1},
+    { file = "extension.toml", search = "^version = .*", replace = "version = \"{{version}}\"", exactly = 1 },
 ]
-pre-release-hook = ["git", "cliff", "-o", "ChangeLog.md", "--tag", "zed-coverage-lsp-{{version}}" ]
+pre-release-hook = [
+    "git",
+    "cliff",
+    "--repository=..",
+    "--output=ChangeLog.md",
+    "--tag=zed-coverage-lsp-{{version}}",
+    "--tag-pattern=zed-coverage-lsp-v.*",
+    "--exclude-path=coverage-lsp/**",
+]

@@ -13,7 +13,13 @@ humantime-serde = "1.1.1"
 lcov-parser = "3.2.2"
 serde = { version = "1.0.228", features = ["rc"] }
 serde_json = "1.0.149"
-tokio = { version = "1.50.0", features = ["io-std", "macros", "rt-multi-thread", "fs", "time"] }
+tokio = { version = "1.50.0", features = [
+    "io-std",
+    "macros",
+    "rt-multi-thread",
+    "fs",
+    "time",
+] }
 tower-lsp = "0.20.0"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
@@ -31,4 +37,12 @@ notifications = []
 color_provider = []
 
 [package.metadata.release]
-pre-release-hook = ["git", "cliff", "-o", "../ChangeLog.md", "--tag", "coverage-lsp-{{version}}" ]
+pre-release-hook = [
+    "git",
+    "cliff",
+    "--repository=..",
+    "--output=../ChangeLog.md",
+    "--tag=coverage-lsp-{{version}}",
+    "--tag-pattern=coverage-lsp-v.*",
+    "--exclude-path=zed-coverage-lsp/**",
+]

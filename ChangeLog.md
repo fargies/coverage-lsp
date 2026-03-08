@@ -1,14 +1,40 @@
-## [1.0.3] - 2026-03-08
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- Fix first label in ChangeLog.md
+
+### 📚 Documentation
+
+- Add zed extension changelog
+
+### ⚙️ Miscellaneous Tasks
+
+- Update release scripts
+
+## [coverage-lsp-v1.0.3] - 2026-03-08
 
 ### 📚 Documentation
 
 - Update documentation
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove build workflow
+
 ## [coverage-lsp-v1.0.2] - 2026-03-08
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release
+- Fix release builds
+
 ## [coverage-lsp-v1.0.1] - 2026-03-08
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix pipeline
+
+## [coverage-lsp-v1.0.0] - 2026-03-08
 
 ### 🚀 Features
 
@@ -28,9 +54,18 @@
 
 - Split code
 
+### 📚 Documentation
+
+- Add COPYING file
+
 ### ⚙️ Miscellaneous Tasks
 
 - First import
+- Add github CI and lsp deployment
+- Add workflow permissions
 - Enhance release workflow and docs
-- Release
-- Release
+- Add funding options for GitHub and Buy Me a Coffee
+- Enhance release workflow and docs
+- Enhance release workflow and docs
+- Add sponsoring logos
+
