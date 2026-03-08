@@ -2,7 +2,7 @@
 description = "Zeditor extension for coverage-lsp"
 repository = "https://github.com/fargies/coverage-lsp"
 name = "zed-coverage-lsp"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 license = "Zlib"
 
