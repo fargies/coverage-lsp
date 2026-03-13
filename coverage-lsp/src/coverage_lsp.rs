@@ -36,7 +36,7 @@ use tower_lsp::{
     lsp_types::{MessageType, Url},
 };
 
-use crate::{CoverageReport, LSP_SETTINGS};
+use crate::{CoverageReport, Settings};
 
 #[derive(Debug)]
 pub struct CoverageLanguageServer {
@@ -101,7 +101,7 @@ impl CoverageLanguageServerContext {
             ctx.update().await;
 
             drop(ctx);
-            let interval = LSP_SETTINGS.read().unwrap().interval;
+            let interval = Settings::get().interval;
             tokio::time::sleep(interval).await;
         }
     }
@@ -111,12 +111,7 @@ impl CoverageLanguageServerContext {
     /// returns [None] if there's nothing to parse or if the report is already
     /// up to date.
     async fn get_update_file(&self) -> Option<PathBuf> {
-        let setting_file_guard = LSP_SETTINGS
-            .read()
-            .unwrap()
-            .lcov_file
-            .as_ref()
-            .map(Arc::clone);
+        let setting_file_guard = Settings::get().lcov_file.as_ref().map(Arc::clone);
         let setting_file = setting_file_guard.as_ref().map(|v| v.as_ref());
         match self.report.read().await.as_ref() {
             Some(report)

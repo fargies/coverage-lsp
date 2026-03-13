@@ -21,6 +21,7 @@
 */
 
 use std::borrow::Cow;
+use std::ops::Deref;
 
 use serde_json::Value;
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
@@ -39,7 +40,7 @@ mod coverage_lsp;
 pub use coverage_lsp::CoverageLanguageServer;
 
 mod settings;
-pub use settings::{LSP_SETTINGS, Settings};
+pub use settings::Settings;
 
 pub const LSP_NAME: &str = "coverage-lsp";
 
@@ -104,7 +105,7 @@ impl LanguageServer for CoverageLanguageServer {
             && let Some(value) = config.get_mut(LSP_NAME).map(Value::take)
         {
             match serde_json::from_value::<Settings>(value) {
-                Ok(settings) => *LSP_SETTINGS.write().unwrap() = settings,
+                Ok(settings) => Settings::set(settings),
                 Err(err) => {
                     self.client
                         .log_message(
@@ -202,11 +203,12 @@ impl LanguageServer for CoverageLanguageServer {
         let mut params = params;
         if let Some(value) = params.settings.get_mut(LSP_NAME).map(Value::take) {
             match serde_json::from_value::<Settings>(value) {
-                Ok(settings) => {
-                    *LSP_SETTINGS.write().unwrap() = settings;
+                Ok(settings) if &settings != Settings::get().deref() => {
+                    Settings::set(settings);
                     #[cfg(feature = "notifications")]
                     self.send_update_notification(false).await;
                 }
+                Ok(_) => { /* ignore change notification */ }
                 Err(err) => {
                     self.client
                         .log_message(

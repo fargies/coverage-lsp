@@ -21,16 +21,21 @@
 ** Author: Sylvain Fargier <fargier.sylvain@gmail.com>
 */
 
-use std::{path::PathBuf, sync::{Arc, RwLock}, time::Duration};
+use std::{
+    ops::Deref,
+    path::PathBuf,
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 
 use ::serde::{Deserialize, Serialize};
 use tower_lsp::lsp_types::Color;
 
 mod serde;
 
-pub static LSP_SETTINGS: RwLock<Settings> = RwLock::new(Settings::new());
+static LSP_SETTINGS: RwLock<Settings> = RwLock::new(Settings::new());
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Settings {
     #[serde(with = "serde")]
@@ -67,6 +72,14 @@ impl Settings {
             lcov_file: None,
         }
     }
+
+    pub fn get() -> impl Deref<Target = Self> {
+        LSP_SETTINGS.read().unwrap()
+    }
+
+    pub fn set(settings: Settings) {
+        *LSP_SETTINGS.write().unwrap() = settings;
+    }
 }
 
 #[cfg(test)]
@@ -81,7 +94,10 @@ mod tests {
             r#"{ "hit": null, "miss": "red", "interval": "20s", "lcov_file": "./lcov.info" }"#,
         )?;
         let settings: Settings = serde_json::from_str(serde_json::to_string(&settings)?.as_str())?;
-        assert_eq!(settings.lcov_file, Some(Arc::new(PathBuf::from("./lcov.info"))));
+        assert_eq!(
+            settings.lcov_file,
+            Some(Arc::new(PathBuf::from("./lcov.info")))
+        );
         assert_eq!(settings.interval, std::time::Duration::from_secs(20));
 
         serde_json::from_str::<Settings>("{}")?;
