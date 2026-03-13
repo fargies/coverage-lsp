@@ -1,4 +1,14 @@
-## [unreleased]
+## [coverage-lsp-1.0.4] - 2026-03-13
+
+### 🐛 Bug Fixes
+
+- Prevent spurious updates
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove dangling file, add ide config (for this extension)
+
+## [zed-coverage-lsp-v1.0.1] - 2026-03-08
 
 ### 🐛 Bug Fixes
 
