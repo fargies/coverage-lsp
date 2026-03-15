@@ -92,7 +92,9 @@ impl CoverageLanguageServerContext {
         let join_handle = self.join_handle.lock().unwrap().take();
         if let Some(join_handle) = join_handle {
             join_handle.abort();
-            join_handle.await.unwrap();
+            if let Err(err) = join_handle.await {
+                tracing::error!(?err, "parsing thread join error");
+            }
         }
     }
 

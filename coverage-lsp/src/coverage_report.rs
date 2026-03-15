@@ -94,6 +94,7 @@ impl CoverageReport {
             match record {
                 lcov_parser::LCOVRecord::SourceFile(src) => {
                     if let Some(cov) = file.take() {
+                        tracing::info!(file = cov.uri.as_str(), "loaded");
                         self.db.insert(cov.uri.clone(), cov);
                     }
                     let url = match root_uri.join(&src) {
@@ -114,6 +115,7 @@ impl CoverageReport {
             }
         }
         if let Some(cov) = file.take() {
+            tracing::info!(file = cov.uri.as_str(), "loaded");
             self.db.insert(cov.uri.clone(), cov);
         }
         Ok(())

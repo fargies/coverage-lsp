@@ -230,7 +230,7 @@ async fn main() {
                 .with_default_directive(Level::INFO.into())
                 .from_env_lossy(),
         )
-        .with(fmt::layer())
+        .with(fmt::layer().with_writer(std::io::stderr).with_ansi(false))
         .init();
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
