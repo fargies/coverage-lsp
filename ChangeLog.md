@@ -1,4 +1,14 @@
-## [coverage-lsp-1.0.4] - 2026-03-13
+## [coverage-lsp-1.1.0] - 2026-03-15
+
+### 🚀 Features
+
+- Make tracing visible from ide
+
+### 🚜 Refactor
+
+- Move from lcov-parser to lcov
+
+## [coverage-lsp-v1.0.4] - 2026-03-13
 
 ### 🐛 Bug Fixes
 
