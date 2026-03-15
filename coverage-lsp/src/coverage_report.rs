@@ -24,7 +24,7 @@
 use std::time::Duration;
 use std::{collections::HashMap, path::PathBuf, time::SystemTime};
 
-use lcov_parser::{FromFile, LCOVParser};
+use lcov::{Reader as LCOVReader, Record};
 use tower_lsp::lsp_types::{
     ColorInformation, DiagnosticSeverity, DocumentDiagnosticReport, FullDocumentDiagnosticReport,
     RelatedFullDocumentDiagnosticReport, Url, WorkspaceDiagnosticReportResult,
@@ -76,7 +76,7 @@ impl CoverageReport {
             .metadata()
             .and_then(|m| m.modified())
             .map_err(|err| make_error(format!("failed update metadata: {err:?}")))?;
-        let mut parser = match LCOVParser::from_file(&self.path) {
+        let parser = match LCOVReader::open_file(&self.path) {
             Ok(parser) => parser,
             Err(err) => {
                 tracing::error!(?err, file = ?self.path, "parsing error");
@@ -85,30 +85,33 @@ impl CoverageReport {
         };
 
         let mut file: Option<FileCoverage> = None;
-        while let Some(record) = parser
-            .next()
-            .inspect_err(|err| tracing::error!(?err, file = ?self.path, "parsing error"))
-            .ok()
-            .flatten()
-        {
+        for parser_result in parser {
+            let record = match parser_result {
+                Ok(record) => record,
+                Err(err) => {
+                    tracing::error!(?err, file = ?self.path, "parsing error");
+                    continue;
+                }
+            };
+
             match record {
-                lcov_parser::LCOVRecord::SourceFile(src) => {
+                Record::SourceFile { path } => {
                     if let Some(cov) = file.take() {
                         tracing::info!(file = cov.uri.as_str(), "loaded");
                         self.db.insert(cov.uri.clone(), cov);
                     }
-                    let url = match root_uri.join(&src) {
+                    let url = match root_uri.join(&path.to_string_lossy()) {
                         Ok(url) => url,
                         Err(err) => {
-                            tracing::error!(?err, "failed to make Url from {src}");
+                            tracing::error!(?err, "failed to make Url from {path:?}");
                             continue;
                         }
                     };
                     file = Some(FileCoverage::new(url));
                 }
-                lcov_parser::LCOVRecord::Data(line_data) => {
+                Record::LineData { line, count, .. } => {
                     if let Some(cov) = file.as_mut() {
-                        cov.add(line_data);
+                        cov.add(line.saturating_sub(1), count);
                     }
                 }
                 _ => (),

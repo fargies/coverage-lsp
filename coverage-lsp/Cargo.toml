@@ -10,7 +10,7 @@ license = "Zlib"
 [dependencies]
 csscolorparser = { version = "0.8.2", features = ["serde"] }
 humantime-serde = "1.1.1"
-lcov-parser = "3.2.2"
+lcov = "0.8.1"
 serde = { version = "1.0.228", features = ["rc"] }
 serde_json = "1.0.149"
 tokio = { version = "1.50.0", features = [

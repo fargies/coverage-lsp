@@ -20,7 +20,6 @@
 ** Author: Sylvain Fargier <fargier.sylvain@gmail.com>
 */
 
-use lcov_parser::LineData;
 use tower_lsp::lsp_types::{
     ColorInformation, Diagnostic, DiagnosticSeverity, FullDocumentDiagnosticReport, Position,
     Range, Url, WorkspaceDocumentDiagnosticReport, WorkspaceFullDocumentDiagnosticReport,
@@ -31,7 +30,7 @@ use crate::{LSP_NAME, Settings};
 #[derive(Debug)]
 pub struct LineCoverageInfo {
     pub line: u32,
-    pub count: u32,
+    pub count: u64
 }
 
 impl LineCoverageInfo {
@@ -45,15 +44,6 @@ impl LineCoverageInfo {
                 line: self.line,
                 character: u32::MAX,
             },
-        }
-    }
-}
-
-impl From<LineData> for LineCoverageInfo {
-    fn from(value: LineData) -> Self {
-        Self {
-            line: value.line - 1,
-            count: value.count,
         }
     }
 }
@@ -72,8 +62,8 @@ impl FileCoverage {
         }
     }
 
-    pub fn add(&mut self, data: LineData) {
-        self.coverage.push(data.into());
+    pub fn add(&mut self, line: u32, count: u64) {
+        self.coverage.push(LineCoverageInfo { line, count });
     }
 
     pub fn create_diagnostic(
