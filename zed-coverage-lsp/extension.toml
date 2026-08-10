@@ -8,5 +8,5 @@ repository = "https://github.com/fargies/coverage-lsp"
 
 [language_servers.coverage-lsp]
 name = "Coverage LSP Server"
-languages = ["C", "C++", "Go", "Rust", "JavaScript", "TypeScript"]
+languages = ["C", "C++", "Go", "Rust", "JavaScript", "TypeScript", "Python"]
 code_action_kinds = []
