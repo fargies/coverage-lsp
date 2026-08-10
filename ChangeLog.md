@@ -1,4 +1,10 @@
-## [coverage-lsp-1.1.1] - 2026-08-10
+## [coverage-lsp-1.1.2] - 2026-08-10
+
+### 🚀 Features
+
+- Integrate tracing with LSP messages
+
+## [coverage-lsp-v1.1.1] - 2026-08-10
 
 ### 🚀 Features
 
