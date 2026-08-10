@@ -27,15 +27,6 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 [dev-dependencies]
 ctor = "0.6.3"
 
-[features]
-default = ["notifications", "color_provider"]
-# Implement coverage display as diagnostics
-diagnostic_provider = []
-# Send document updates to trigger a coloring refresh
-notifications = []
-# Implement coverage display as coloring
-color_provider = []
-
 [package.metadata.release]
 pre-release-hook = [
     "git",

@@ -21,7 +21,7 @@
 ** Author: Sylvain Fargier <fargier.sylvain@gmail.com>
 */
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
@@ -31,10 +31,7 @@ use tokio::{
     sync::RwLock,
     task::{self, JoinHandle},
 };
-use tower_lsp::lsp_types::{
-    ConfigurationItem, Position, Range, Registration, TextEdit, Unregistration,
-    WorkspaceEdit,
-};
+use tower_lsp::lsp_types::{ConfigurationItem, Registration, Unregistration};
 use tower_lsp::{
     Client,
     lsp_types::{MessageType, Url},
@@ -91,7 +88,11 @@ struct ContextGuard<'a>(Option<State>, &'a CoverageLanguageServerContext);
 
 impl<'a> ContextGuard<'a> {
     pub fn new(ls: &'a CoverageLanguageServerContext) -> Option<Self> {
-        ls.state.lock().unwrap().take().map(|context| Self(Some(context), ls))
+        ls.state
+            .lock()
+            .unwrap()
+            .take()
+            .map(|context| Self(Some(context), ls))
     }
 }
 
@@ -111,11 +112,7 @@ impl DerefMut for ContextGuard<'_> {
 
 impl Drop for ContextGuard<'_> {
     fn drop(&mut self) {
-        self.1
-            .state
-            .lock()
-            .unwrap()
-            .replace(self.0.take().unwrap());
+        self.1.state.lock().unwrap().replace(self.0.take().unwrap());
     }
 }
 
@@ -222,11 +219,6 @@ impl CoverageLanguageServerContext {
                         )
                         .await;
                     self.report.write().await.take();
-
-                    #[cfg(feature = "notifications")]
-                    if !context.has_dyn_color_provider {
-                        self.send_update_notification(true).await;
-                    }
                     return;
                 }
             };
@@ -241,11 +233,6 @@ impl CoverageLanguageServerContext {
                     .await
             } else {
                 self.report.write().await.replace(report);
-
-                #[cfg(feature = "notifications")]
-                if !context.has_dyn_color_provider {
-                    self.send_update_notification(false).await;
-                }
             }
 
             if !context.is_registered && context.has_dyn_color_provider {
@@ -266,63 +253,6 @@ impl CoverageLanguageServerContext {
                     );
                 }
                 context.is_registered = true;
-            }
-        }
-    }
-
-    /// Edit opened documents to trigger a coloration update
-    #[cfg(feature = "notifications")]
-    pub async fn send_update_notification(&self, forced: bool) {
-        let opened = self.open_docs.read().await.clone();
-        let mut changes = HashMap::with_capacity(1);
-        let edit = Vec::from([TextEdit {
-            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
-            new_text: " ".into(),
-        }]);
-
-        // if we update all docs at once, zed will open an "LSP Edits" tab
-        // notifying editors one by ones silences it.
-        for doc in opened.into_iter() {
-            if !forced
-                && self
-                    .report
-                    .read()
-                    .await
-                    .as_ref()
-                    .is_none_or(|report| !report.db.contains_key(&doc))
-            {
-                continue;
-            }
-            changes.clear();
-            changes.insert(doc.clone(), edit.clone());
-            if let Err(err) = self
-                .client
-                .apply_edit(WorkspaceEdit {
-                    changes: Some(changes.clone()),
-                    ..Default::default()
-                })
-                .await
-            {
-                tracing::error!(?err, "WorkspaceEdit error");
-                return;
-            }
-
-            for (_, change) in changes.iter_mut() {
-                let text_edit = change.first_mut().unwrap();
-                text_edit.range.end.character = 1;
-                text_edit.new_text = String::default();
-            }
-            /* for some reason if we send both edits at once the delete is done before write */
-            if let Err(err) = self
-                .client
-                .apply_edit(WorkspaceEdit {
-                    changes: Some(changes.clone()),
-                    ..Default::default()
-                })
-                .await
-            {
-                tracing::error!(?err, "WorkspaceEdit error");
-                return;
             }
         }
     }

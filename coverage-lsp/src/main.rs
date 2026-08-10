@@ -82,28 +82,7 @@ impl LanguageServer for CoverageLanguageServer {
             capabilities: match has_dyn_color_provider {
                 true => ServerCapabilities::default(),
                 false => ServerCapabilities {
-                    // Track opened/closed documents to send notifications on coverage file change
-                    #[cfg(feature = "notifications")]
-                    text_document_sync: Some(TextDocumentSyncCapability::Options(
-                        TextDocumentSyncOptions {
-                            open_close: Some(true),
-                            change: Some(TextDocumentSyncKind::NONE),
-                            ..Default::default()
-                        },
-                    )),
-                    #[cfg(feature = "color_provider")]
                     color_provider: Some(ColorProviderCapability::Simple(true)),
-                    #[cfg(feature = "diagnostic_provider")]
-                    diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
-                        DiagnosticOptions {
-                            identifier: Some(LSP_NAME.to_string()),
-                            inter_file_dependencies: true,
-                            workspace_diagnostics: true,
-                            work_done_progress_options: WorkDoneProgressOptions {
-                                work_done_progress: Some(false),
-                            },
-                        },
-                    )),
                     ..ServerCapabilities::default()
                 },
             },
@@ -140,48 +119,6 @@ impl LanguageServer for CoverageLanguageServer {
         Ok(())
     }
 
-    #[cfg(feature = "diagnostic_provider")]
-    async fn workspace_diagnostic(
-        &self,
-        _params: WorkspaceDiagnosticParams,
-    ) -> Result<WorkspaceDiagnosticReportResult> {
-        match self.context.report.read().await.as_ref() {
-            Some(report) => Ok(report.create_workspace_diagnostic()),
-            None => Ok(WorkspaceDiagnosticReport::default().into()),
-        }
-    }
-
-    #[cfg(feature = "diagnostic_provider")]
-    async fn diagnostic(
-        &self,
-        params: DocumentDiagnosticParams,
-    ) -> Result<DocumentDiagnosticReportResult> {
-        match self
-            .context
-            .report
-            .read()
-            .await
-            .as_ref()
-            .and_then(|report| {
-                report.create_document_diagnostic(
-                    &params.text_document.uri,
-                    &params.previous_result_id,
-                )
-            }) {
-            Some(report) => Ok(DocumentDiagnosticReportResult::Report(report)),
-            None => Ok(DocumentDiagnosticReportResult::Report(
-                RelatedUnchangedDocumentDiagnosticReport {
-                    related_documents: None,
-                    unchanged_document_diagnostic_report: UnchangedDocumentDiagnosticReport {
-                        result_id: String::default(),
-                    },
-                }
-                .into(),
-            )),
-        }
-    }
-
-    #[cfg(feature = "color_provider")]
     async fn document_color(&self, params: DocumentColorParams) -> Result<Vec<ColorInformation>> {
         match self
             .report
@@ -196,38 +133,12 @@ impl LanguageServer for CoverageLanguageServer {
         }
     }
 
-    #[cfg(feature = "notifications")]
-    async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.open_docs
-            .write()
-            .await
-            .insert(params.text_document.uri);
-    }
-
-    #[cfg(feature = "notifications")]
-    async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        self.open_docs
-            .write()
-            .await
-            .remove(&params.text_document.uri);
-    }
-
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
         let mut params = params;
         if let Some(value) = params.settings.get_mut(LSP_NAME).map(Value::take) {
             match serde_json::from_value::<Settings>(value) {
                 Ok(settings) if &settings != Settings::get().deref() => {
                     Settings::set(settings);
-                    #[cfg(feature = "notifications")]
-                    if self
-                        .state
-                        .lock()
-                        .unwrap()
-                        .as_ref()
-                        .is_some_and(|x| x.has_dyn_color_provider)
-                    {
-                        self.send_update_notification(false).await;
-                    }
                 }
                 Ok(_) => { /* ignore change notification */ }
                 Err(err) => {
