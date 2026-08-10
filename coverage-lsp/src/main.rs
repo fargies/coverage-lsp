@@ -63,35 +63,49 @@ impl LanguageServer for CoverageLanguageServer {
         {
             *self.root_uri.write().await = root_uri;
         }
+
+        let has_dyn_color_provider = params
+            .capabilities
+            .text_document
+            .and_then(|v| v.color_provider)
+            .and_then(|v| v.dynamic_registration)
+            .unwrap_or(false);
+        if let Some(ctx) = self.state.lock().unwrap().as_mut() {
+            ctx.has_dyn_color_provider = has_dyn_color_provider;
+        }
+
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
                 name: LSP_NAME.into(),
                 version: Some(env!("CARGO_PKG_VERSION").into()),
             }),
-            capabilities: ServerCapabilities {
-                // Track opened/closed documents to send notifications on coverage file change
-                #[cfg(feature = "notifications")]
-                text_document_sync: Some(TextDocumentSyncCapability::Options(
-                    TextDocumentSyncOptions {
-                        open_close: Some(true),
-                        change: Some(TextDocumentSyncKind::NONE),
-                        ..Default::default()
-                    },
-                )),
-                #[cfg(feature = "color_provider")]
-                color_provider: Some(ColorProviderCapability::Simple(true)),
-                #[cfg(feature = "diagnostic_provider")]
-                diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
-                    DiagnosticOptions {
-                        identifier: Some(LSP_NAME.to_string()),
-                        inter_file_dependencies: true,
-                        workspace_diagnostics: true,
-                        work_done_progress_options: WorkDoneProgressOptions {
-                            work_done_progress: Some(false),
+            capabilities: match has_dyn_color_provider {
+                true => ServerCapabilities::default(),
+                false => ServerCapabilities {
+                    // Track opened/closed documents to send notifications on coverage file change
+                    #[cfg(feature = "notifications")]
+                    text_document_sync: Some(TextDocumentSyncCapability::Options(
+                        TextDocumentSyncOptions {
+                            open_close: Some(true),
+                            change: Some(TextDocumentSyncKind::NONE),
+                            ..Default::default()
                         },
-                    },
-                )),
-                ..ServerCapabilities::default()
+                    )),
+                    #[cfg(feature = "color_provider")]
+                    color_provider: Some(ColorProviderCapability::Simple(true)),
+                    #[cfg(feature = "diagnostic_provider")]
+                    diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
+                        DiagnosticOptions {
+                            identifier: Some(LSP_NAME.to_string()),
+                            inter_file_dependencies: true,
+                            workspace_diagnostics: true,
+                            work_done_progress_options: WorkDoneProgressOptions {
+                                work_done_progress: Some(false),
+                            },
+                        },
+                    )),
+                    ..ServerCapabilities::default()
+                },
             },
         })
     }
@@ -117,12 +131,12 @@ impl LanguageServer for CoverageLanguageServer {
             }
         }
         self.update().await;
-        self.context.start();
+        self.start();
     }
 
     async fn shutdown(&self) -> Result<()> {
-        self.context.stop().await;
-        self.context.report.write().await.take();
+        self.stop().await;
+        self.report.write().await.take();
         Ok(())
     }
 
@@ -170,7 +184,6 @@ impl LanguageServer for CoverageLanguageServer {
     #[cfg(feature = "color_provider")]
     async fn document_color(&self, params: DocumentColorParams) -> Result<Vec<ColorInformation>> {
         match self
-            .context
             .report
             .read()
             .await
@@ -206,7 +219,15 @@ impl LanguageServer for CoverageLanguageServer {
                 Ok(settings) if &settings != Settings::get().deref() => {
                     Settings::set(settings);
                     #[cfg(feature = "notifications")]
-                    self.send_update_notification(false).await;
+                    if self
+                        .state
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .is_some_and(|x| x.has_dyn_color_provider)
+                    {
+                        self.send_update_notification(false).await;
+                    }
                 }
                 Ok(_) => { /* ignore change notification */ }
                 Err(err) => {

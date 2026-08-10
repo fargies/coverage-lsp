@@ -22,6 +22,7 @@
 */
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -30,7 +31,10 @@ use tokio::{
     sync::RwLock,
     task::{self, JoinHandle},
 };
-use tower_lsp::lsp_types::{ConfigurationItem, Position, Range, TextEdit, WorkspaceEdit};
+use tower_lsp::lsp_types::{
+    ConfigurationItem, Position, Range, Registration, TextEdit, Unregistration,
+    WorkspaceEdit,
+};
 use tower_lsp::{
     Client,
     lsp_types::{MessageType, Url},
@@ -40,14 +44,22 @@ use crate::{CoverageReport, Settings};
 
 #[derive(Debug)]
 pub struct CoverageLanguageServer {
-    pub context: Arc<CoverageLanguageServerContext>,
+    pub internal: Arc<CoverageLanguageServerContext>,
 }
 
 impl CoverageLanguageServer {
     pub fn new(client: Client) -> Self {
         Self {
-            context: CoverageLanguageServerContext::new(client),
+            internal: CoverageLanguageServerContext::new(client),
         }
+    }
+
+    pub fn start(&self) {
+        self.internal.start()
+    }
+
+    pub fn stop(&self) -> impl Future<Output = ()> {
+        self.internal.stop()
     }
 }
 
@@ -55,7 +67,7 @@ impl std::ops::Deref for CoverageLanguageServer {
     type Target = CoverageLanguageServerContext;
 
     fn deref(&self) -> &Self::Target {
-        &self.context
+        &self.internal
     }
 }
 
@@ -65,7 +77,46 @@ pub struct CoverageLanguageServerContext {
     pub root_uri: RwLock<Url>,
     pub report: RwLock<Option<CoverageReport>>,
     pub open_docs: RwLock<HashSet<Url>>,
+    pub state: Mutex<Option<State>>,
     join_handle: Mutex<Option<JoinHandle<()>>>,
+}
+
+#[derive(Debug, Default)]
+pub struct State {
+    pub is_registered: bool,
+    pub has_dyn_color_provider: bool,
+}
+
+struct ContextGuard<'a>(Option<State>, &'a CoverageLanguageServerContext);
+
+impl<'a> ContextGuard<'a> {
+    pub fn new(ls: &'a CoverageLanguageServerContext) -> Option<Self> {
+        ls.state.lock().unwrap().take().map(|context| Self(Some(context), ls))
+    }
+}
+
+impl Deref for ContextGuard<'_> {
+    type Target = State;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().unwrap()
+    }
+}
+
+impl DerefMut for ContextGuard<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.as_mut().unwrap()
+    }
+}
+
+impl Drop for ContextGuard<'_> {
+    fn drop(&mut self) {
+        self.1
+            .state
+            .lock()
+            .unwrap()
+            .replace(self.0.take().unwrap());
+    }
 }
 
 impl CoverageLanguageServerContext {
@@ -77,6 +128,7 @@ impl CoverageLanguageServerContext {
             ),
             report: Default::default(),
             open_docs: Default::default(),
+            state: Mutex::new(Some(State::default())),
             join_handle: Default::default(),
         })
     }
@@ -131,10 +183,35 @@ impl CoverageLanguageServerContext {
     }
 
     pub async fn update(&self) {
+        let mut context = match ContextGuard::new(self) {
+            Some(ctx) => ctx,
+            None => {
+                tracing::warn!("no context to run update");
+                return;
+            }
+        };
         if let Some(file) = self.get_update_file().await {
             self.client
                 .log_message(MessageType::INFO, format!("(re)loading file: {file:?}"))
                 .await;
+            if context.is_registered && context.has_dyn_color_provider {
+                if let Err(err) = self
+                    .client
+                    .unregister_capability(
+                        [Unregistration {
+                            id: "coverage-lsp".into(),
+                            method: "textDocument/documentColor".into(),
+                        }]
+                        .into(),
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        "failed to unregister [textDocument/documentColor] service: {err:?}"
+                    );
+                }
+                context.is_registered = false;
+            }
             let mut report = match CoverageReport::try_from(file) {
                 Ok(report) => report,
                 Err(err) => {
@@ -147,7 +224,9 @@ impl CoverageLanguageServerContext {
                     self.report.write().await.take();
 
                     #[cfg(feature = "notifications")]
-                    self.send_update_notification(true).await;
+                    if !context.has_dyn_color_provider {
+                        self.send_update_notification(true).await;
+                    }
                     return;
                 }
             };
@@ -162,8 +241,31 @@ impl CoverageLanguageServerContext {
                     .await
             } else {
                 self.report.write().await.replace(report);
+
                 #[cfg(feature = "notifications")]
-                self.send_update_notification(false).await;
+                if !context.has_dyn_color_provider {
+                    self.send_update_notification(false).await;
+                }
+            }
+
+            if !context.is_registered && context.has_dyn_color_provider {
+                if let Err(err) = self
+                    .client
+                    .register_capability(
+                        [Registration {
+                            id: "coverage-lsp".into(),
+                            method: "textDocument/documentColor".into(),
+                            register_options: None,
+                        }]
+                        .into(),
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        "failed to register [textDocument/documentColor] service: {err:?}"
+                    );
+                }
+                context.is_registered = true;
             }
         }
     }
@@ -274,7 +376,7 @@ impl CoverageLanguageServerContext {
     }
 }
 
-impl Drop for CoverageLanguageServerContext {
+impl Drop for CoverageLanguageServer {
     fn drop(&mut self) {
         if let Some(join_handle) = self.join_handle.lock().unwrap().take() {
             join_handle.abort();
