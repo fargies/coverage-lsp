@@ -52,9 +52,7 @@ impl CoverageExtension {
         }
 
         if let Some(binary_path) = Self::check_installed(&bin_name) {
-            // silent to check for update.
-            let _ = Self::check_to_update(id, &bin_name);
-            return Ok(binary_path);
+            return Ok(Self::check_to_update(id, &bin_name).unwrap_or(binary_path));
         }
 
         let binary_path = Self::check_to_update(id, &bin_name)?;
