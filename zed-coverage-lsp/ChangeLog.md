@@ -1,4 +1,10 @@
-## [zed-coverage-lsp-1.0.2] - 2026-08-10
+## [zed-coverage-lsp-1.0.3] - 2026-08-10
+
+### 💼 Other
+
+- Use updated extension path
+
+## [zed-coverage-lsp-v1.0.2] - 2026-08-10
 
 ### 🚀 Features
 
