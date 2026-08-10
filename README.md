@@ -16,15 +16,18 @@ Coverage information is surfaced using the
 [`textDocument/documentColor`](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_documentColor)
 request, allowing editors to visually highlight covered and uncovered lines.
 
+It also includes a [Zed](https://zed.dev/) extension that integrates the
+language server with Zed.
+
 ## Zed-editor extension
 
 ### Installation
 
 The extension may be installed from source, by cloning [fargies/coverage-lsp](https://github.com/fargies/coverage-lsp) repository and selecting the `zed-coverage-lsp` directory from "Install Dev Extension" menu.
 
-If not already found in path, the extension will download and install latest *coverage-lsp* server from [GitHub's project releases](https://github.com/fargies/coverage-lsp/releases).
+If not already found in path, the extension will download and install latest _coverage-lsp_ server from [GitHub's project releases](https://github.com/fargies/coverage-lsp/releases).
 
-To install your own version of *coverage-lsp*, simply use:
+To install your own version of _coverage-lsp_, simply use:
 
 ```bash
 cargo install coverage-lsp
@@ -34,7 +37,7 @@ cargo install coverage-lsp
 
 The server can be configured through the following settings.
 
-### `hit`
+#### `hit`
 
 CSS color used to highlight **covered lines**.
 
@@ -43,7 +46,7 @@ CSS color used to highlight **covered lines**.
 - Parsed using [`csscolorparser`](https://crates.io/crates/csscolorparser).
 - Default: `rgba(0%,100%,0%,10%)`
 
-### `miss`
+#### `miss`
 
 CSS color used to highlight **uncovered lines**.
 
@@ -52,7 +55,7 @@ CSS color used to highlight **uncovered lines**.
 - Parsed using [`csscolorparser`](https://crates.io/crates/csscolorparser).
 - Default: `rgba(100%,0%,0%,10%)`
 
-### `interval`
+#### `interval`
 
 Interval used to check whether the coverage file has changed.
 
@@ -60,7 +63,7 @@ Interval used to check whether the coverage file has changed.
 - Example values: `3s`, `20s`, `1m`
 - Default: `3s`
 
-### `lcov_file`
+#### `lcov_file`
 
 Path to the [LCOV](https://lcov.readthedocs.io) coverage file to load.
 
@@ -83,6 +86,26 @@ Path to the [LCOV](https://lcov.readthedocs.io) coverage file to load.
   }
 }
 ```
+
+## Look & Feel
+
+How coverage information is displayed in Zed depends on the **LSP Document
+Colors** setting:
+![Zed LSP Document Colors](data/zed-lsp-document-colors.png)
+
+The language server provides the coverage colors, but the way those colors are
+rendered ultimately depends on your Zed theme. Here are some examples of the
+different visual styles you can achieve.
+
+Background coloring:
+![Zed Background Coloring](data/zed-background-color.png)
+
+Border coloring:
+![Zed Border Coloring](data/zed-border-color.png)
+
+Inlay coloring:
+![Zed Inlay Coloring](data/zed-inlay-color.png)
+
 
 ## Development
 
