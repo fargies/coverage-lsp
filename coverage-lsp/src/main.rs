@@ -27,8 +27,6 @@ use serde_json::Value;
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{LanguageServer, LspService, Server};
-use tracing::Level;
-use tracing_subscriber::{EnvFilter, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod file_coverage;
 pub use file_coverage::FileCoverage;
@@ -41,6 +39,8 @@ pub use coverage_lsp::CoverageLanguageServer;
 
 mod settings;
 pub use settings::Settings;
+
+mod logger;
 
 pub const LSP_NAME: &str = "coverage-lsp";
 
@@ -90,23 +90,17 @@ impl LanguageServer for CoverageLanguageServer {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        self.client
-            .log_message(MessageType::INFO, "server initialized!")
-            .await;
+        tracing::info!(
+            version = env!("CARGO_PKG_VERSION"),
+            "coverage-lsp language-server initialized!",
+        );
 
         if let Some(mut config) = self.get_configuration().await
             && let Some(value) = config.get_mut(LSP_NAME).map(Value::take)
         {
             match serde_json::from_value::<Settings>(value) {
                 Ok(settings) => Settings::set(settings),
-                Err(err) => {
-                    self.client
-                        .log_message(
-                            MessageType::ERROR,
-                            format!("failed to parse settings: {err:?}"),
-                        )
-                        .await
-                }
+                Err(err) => tracing::error!(?err, "failed to parse settings"),
             }
         }
         self.update().await;
@@ -141,29 +135,21 @@ impl LanguageServer for CoverageLanguageServer {
                     Settings::set(settings);
                 }
                 Ok(_) => { /* ignore change notification */ }
-                Err(err) => {
-                    self.client
-                        .log_message(
-                            MessageType::ERROR,
-                            format!("failed to parse settings: {err:?}"),
-                        )
-                        .await
-                }
+                Err(err) => tracing::error!(?err, "failed to parse settings"),
             }
         }
     }
+
+    // silence runtime warning
+    async fn did_open(&self, _: DidOpenTextDocumentParams) {}
+
+    // silence runtime warning
+    async fn did_close(&self, _: DidCloseTextDocumentParams) {}
 }
 
 #[tokio::main]
 async fn main() {
-    Registry::default()
-        .with(
-            EnvFilter::builder()
-                .with_default_directive(Level::INFO.into())
-                .from_env_lossy(),
-        )
-        .with(fmt::layer().with_writer(std::io::stderr).with_ansi(false))
-        .init();
+    logger::init_logger();
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
@@ -173,6 +159,11 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
+    use tracing::Level;
+    use tracing_subscriber::{
+        EnvFilter, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt,
+    };
+
     use super::*;
 
     #[ctor::ctor]

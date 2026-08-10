@@ -25,11 +25,8 @@ use std::time::Duration;
 use std::{collections::HashMap, path::PathBuf, time::SystemTime};
 
 use lcov::{Reader as LCOVReader, Record};
-use tower_lsp::lsp_types::{
-    ColorInformation, DiagnosticSeverity, DocumentDiagnosticReport, FullDocumentDiagnosticReport,
-    RelatedFullDocumentDiagnosticReport, Url, WorkspaceDiagnosticReportResult,
-};
-use tower_lsp::{jsonrpc::Result, lsp_types::WorkspaceDiagnosticReport};
+use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::{ColorInformation, Url};
 
 use crate::{FileCoverage, make_error};
 
@@ -122,45 +119,6 @@ impl CoverageReport {
             self.db.insert(cov.uri.clone(), cov);
         }
         Ok(())
-    }
-
-    pub fn create_workspace_diagnostic(&self) -> WorkspaceDiagnosticReportResult {
-        WorkspaceDiagnosticReportResult::Report(WorkspaceDiagnosticReport {
-            items: self
-                .db
-                .values()
-                .map(|v| v.create_workspace_document_diagnostic())
-                .collect(),
-        })
-    }
-
-    pub fn create_document_diagnostic(
-        &self,
-        uri: &Url,
-        last_id: &Option<String>,
-    ) -> Option<DocumentDiagnosticReport> {
-        if last_id.as_ref().is_some_and(|last_id| last_id == &self.id) {
-            return None;
-        }
-        Some(
-            RelatedFullDocumentDiagnosticReport {
-                related_documents: None,
-                full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                    result_id: Some(self.id.clone()),
-                    items: self
-                        .db
-                        .get(uri)
-                        .map(|report| {
-                            report.create_diagnostic(
-                                Some(DiagnosticSeverity::INFORMATION),
-                                Some(DiagnosticSeverity::WARNING),
-                            )
-                        })
-                        .unwrap_or_default(),
-                },
-            }
-            .into(),
-        )
     }
 
     pub fn create_document_color(&self, uri: &Url) -> Vec<ColorInformation> {

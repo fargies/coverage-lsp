@@ -32,12 +32,9 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use tower_lsp::lsp_types::{ConfigurationItem, Registration, Unregistration};
-use tower_lsp::{
-    Client,
-    lsp_types::{MessageType, Url},
-};
+use tower_lsp::{Client, lsp_types::Url};
 
-use crate::{CoverageReport, Settings};
+use crate::{CoverageReport, Settings, logger::LogPump};
 
 #[derive(Debug)]
 pub struct CoverageLanguageServer {
@@ -118,7 +115,7 @@ impl Drop for ContextGuard<'_> {
 
 impl CoverageLanguageServerContext {
     pub fn new(client: Client) -> Arc<Self> {
-        Arc::new(Self {
+        let ret = Arc::new(Self {
             client,
             root_uri: RwLock::new(
                 Url::from_directory_path(std::env::current_dir().unwrap()).unwrap(),
@@ -127,7 +124,9 @@ impl CoverageLanguageServerContext {
             open_docs: Default::default(),
             state: Mutex::new(Some(State::default())),
             join_handle: Default::default(),
-        })
+        });
+        LogPump::set_service(Arc::downgrade(&ret));
+        ret
     }
 
     pub fn start(self: &Arc<Self>) {
@@ -188,9 +187,7 @@ impl CoverageLanguageServerContext {
             }
         };
         if let Some(file) = self.get_update_file().await {
-            self.client
-                .log_message(MessageType::INFO, format!("(re)loading file: {file:?}"))
-                .await;
+            tracing::info!(?file, "(re)loading file");
             if context.is_registered && context.has_dyn_color_provider {
                 if let Err(err) = self
                     .client
@@ -212,12 +209,7 @@ impl CoverageLanguageServerContext {
             let mut report = match CoverageReport::try_from(file) {
                 Ok(report) => report,
                 Err(err) => {
-                    self.client
-                        .log_message(
-                            MessageType::ERROR,
-                            format!("failed to load report: {err:?}"),
-                        )
-                        .await;
+                    tracing::error!(?err, "failed to load report");
                     self.report.write().await.take();
                     return;
                 }
@@ -225,12 +217,7 @@ impl CoverageLanguageServerContext {
             let root_uri = self.root_uri.read().await.clone();
 
             if let Err(err) = report.load(&root_uri) {
-                self.client
-                    .log_message(
-                        MessageType::ERROR,
-                        format!("failed to parse report: {err:?}"),
-                    )
-                    .await
+                tracing::error!(?err, "failed to parse report");
             } else {
                 self.report.write().await.replace(report);
             }
@@ -259,20 +246,16 @@ impl CoverageLanguageServerContext {
 
     /// Crawl the workspace to find an '*.info' file
     pub async fn find_lcov_file(&self) -> Option<PathBuf> {
-        self.client
-            .log_message(MessageType::INFO, "crawling for coverage file")
-            .await;
+        tracing::debug!("crawling for coverage file");
         let mut dir_stack = VecDeque::with_capacity(64);
         let root_path = self.root_uri.read().await.path().to_string();
         dir_stack.push_back(PathBuf::from(&root_path));
 
         while let Some(path) = dir_stack.pop_front() {
-            let mut reader = match tokio::fs::read_dir(path).await.ok() {
-                Some(reader) => reader,
-                None => {
-                    self.client
-                        .log_message(MessageType::WARNING, "failed to read_dir: {path:?}")
-                        .await;
+            let mut reader = match tokio::fs::read_dir(path).await {
+                Ok(reader) => reader,
+                Err(err) => {
+                    tracing::warn!(?err, "failed to read_dir");
                     continue;
                 }
             };
@@ -281,15 +264,10 @@ impl CoverageLanguageServerContext {
                 if path.is_dir() {
                     dir_stack.push_back(path);
                 } else if path.extension().is_some_and(|ext| ext == "info") {
-                    self.client
-                        .show_message(
-                            MessageType::INFO,
-                            format!(
-                                "coverage file found: {:?}",
-                                path.strip_prefix(&root_path).unwrap_or(&path)
-                            ),
-                        )
-                        .await;
+                    tracing::info!(
+                        file = ?path.strip_prefix(&root_path).unwrap_or(&path),
+                        "coverage file found"
+                    );
                     return Some(path);
                 }
             }

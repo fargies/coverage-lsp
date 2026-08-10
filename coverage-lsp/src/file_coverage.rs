@@ -20,17 +20,14 @@
 ** Author: Sylvain Fargier <fargier.sylvain@gmail.com>
 */
 
-use tower_lsp::lsp_types::{
-    ColorInformation, Diagnostic, DiagnosticSeverity, FullDocumentDiagnosticReport, Position,
-    Range, Url, WorkspaceDocumentDiagnosticReport, WorkspaceFullDocumentDiagnosticReport,
-};
+use tower_lsp::lsp_types::{ColorInformation, Position, Range, Url};
 
-use crate::{LSP_NAME, Settings};
+use crate::Settings;
 
 #[derive(Debug)]
 pub struct LineCoverageInfo {
     pub line: u32,
-    pub count: u64
+    pub count: u64,
 }
 
 impl LineCoverageInfo {
@@ -64,53 +61,6 @@ impl FileCoverage {
 
     pub fn add(&mut self, line: u32, count: u64) {
         self.coverage.push(LineCoverageInfo { line, count });
-    }
-
-    pub fn create_diagnostic(
-        &self,
-        hit: Option<DiagnosticSeverity>,
-        missed: Option<DiagnosticSeverity>,
-    ) -> Vec<Diagnostic> {
-        let mut ret = Vec::with_capacity(self.coverage.len());
-        for cov in self.coverage.iter() {
-            if cov.count != 0 && hit.is_some() {
-                ret.push(Diagnostic::new(
-                    cov.range(),
-                    hit,
-                    None,
-                    Some(LSP_NAME.into()),
-                    "line covered".into(),
-                    None,
-                    None,
-                ));
-            } else if missed.is_some() {
-                ret.push(Diagnostic::new(
-                    cov.range(),
-                    missed,
-                    None,
-                    Some(LSP_NAME.into()),
-                    "line not covered".into(),
-                    None,
-                    None,
-                ));
-            }
-        }
-        ret
-    }
-
-    pub fn create_workspace_document_diagnostic(&self) -> WorkspaceDocumentDiagnosticReport {
-        WorkspaceFullDocumentDiagnosticReport {
-            version: None,
-            full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                result_id: None,
-                items: self.create_diagnostic(
-                    Some(DiagnosticSeverity::INFORMATION),
-                    Some(DiagnosticSeverity::WARNING),
-                ),
-            },
-            uri: self.uri.clone(),
-        }
-        .into()
     }
 
     pub fn create_document_color(&self) -> Vec<ColorInformation> {
