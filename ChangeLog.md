@@ -1,4 +1,22 @@
-## [coverage-lsp-1.1.0] - 2026-03-15
+## [coverage-lsp-1.1.1] - 2026-08-10
+
+### 🚀 Features
+
+- Use dynamic registration to refresh coloring
+
+### 🚜 Refactor
+
+- Remove features
+
+### 📚 Documentation
+
+- Adding some look & feel doc
+
+### ⚙️ Miscellaneous Tasks
+
+- Minor deps update
+
+## [coverage-lsp-v1.1.0] - 2026-03-15
 
 ### 🚀 Features
 
