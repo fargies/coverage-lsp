@@ -1,4 +1,24 @@
-## [zed-coverage-lsp-1.0.1] - 2026-03-08
+## [zed-coverage-lsp-1.0.2] - 2026-08-10
+
+### 🚀 Features
+
+- Enable Python language
+
+### 🚜 Refactor
+
+- Move from lcov-parser to lcov
+
+### 📚 Documentation
+
+- Adding LICENSE file in zed-coverage-lsp
+- Adding some look & feel doc
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove dangling file, add ide config (for this extension)
+- Minor deps update
+
+## [zed-coverage-lsp-v1.0.1] - 2026-03-08
 
 ### 🚀 Features
 
