@@ -1,4 +1,17 @@
-## [coverage-lsp-1.1.2] - 2026-08-10
+## [coverage-lsp-v1.2.0] - 2026-10-22
+
+### ⚡ Performance
+
+- Reduce crawling load
+
+### ⚙️ Miscellaneous Tasks
+
+- Dependencies upgrade
+- Update cliff.toml to ignore Merge commits
+- Fix git-cliff configuration
+- Fix git-cliff (tag-pattern is not from tag-strat by default)
+
+## [coverage-lsp-v1.1.2] - 2026-08-10
 
 ### 🚀 Features
 
@@ -36,17 +49,8 @@
 
 ### 🐛 Bug Fixes
 
-- Prevent spurious updates
-
-### ⚙️ Miscellaneous Tasks
-
-- Remove dangling file, add ide config (for this extension)
-
-## [zed-coverage-lsp-v1.0.1] - 2026-03-08
-
-### 🐛 Bug Fixes
-
 - Fix first label in ChangeLog.md
+- Prevent spurious updates
 
 ### 📚 Documentation
 
@@ -55,6 +59,7 @@
 ### ⚙️ Miscellaneous Tasks
 
 - Update release scripts
+- Remove dangling file, add ide config (for this extension)
 
 ## [coverage-lsp-v1.0.3] - 2026-03-08
 
