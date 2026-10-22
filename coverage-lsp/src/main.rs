@@ -166,7 +166,7 @@ mod tests {
 
     use super::*;
 
-    #[ctor::ctor]
+    #[ctor::ctor(unsafe)]
     fn log_init() {
         Registry::default()
             .with(

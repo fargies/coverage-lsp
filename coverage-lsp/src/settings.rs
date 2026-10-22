@@ -22,6 +22,8 @@
 */
 
 use std::{
+    collections::HashSet,
+    ffi::OsString,
     ops::Deref,
     path::PathBuf,
     sync::{Arc, RwLock},
@@ -34,17 +36,48 @@ use tower_lsp::lsp_types::Color;
 mod serde;
 
 static LSP_SETTINGS: RwLock<Settings> = RwLock::new(Settings::new());
+const DEFAULT_DIRS_BLACKLIST: &[&str] = &[
+    "node_modules",
+    "deps",
+    "incremental",
+    "bin",
+    "include",
+    "lib",
+];
+const DEFAULT_MAX_DEPTH: usize = 3;
+const DEFAULT_IGNORE_HIDDEN_DIRS: bool = true;
+const DEFAULT_INTERVAL: Duration = Duration::from_secs(3);
+const DEFAULT_CRAWL_INTERVAL: Duration = Duration::from_secs(15);
+
+fn default_blacklist() -> Option<Arc<HashSet<OsString>>> {
+    Some(Arc::new(HashSet::from_iter(
+        DEFAULT_DIRS_BLACKLIST.iter().map(|&v| OsString::from(v)),
+    )))
+}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Settings {
+    /// Display color for matched lines
     #[serde(with = "serde")]
     pub hit: Option<Color>,
+    /// Display color un-matched (missed) lines
     #[serde(with = "serde")]
     pub miss: Option<Color>,
+    /// Coverage report file-checking interval
     #[serde(with = "humantime_serde")]
     pub interval: Duration,
+    /// Coverage report file to load
     pub lcov_file: Option<Arc<PathBuf>>,
+    /// Directories to ignore during crawl
+    #[serde(default = "default_blacklist")]
+    pub dirs_blacklist: Option<Arc<HashSet<OsString>>>,
+    /// Ignore directories starting with "." during crawl
+    pub ignore_hidden_dirs: bool,
+    /// Maximum directory depth during crawl
+    pub max_depth: usize,
+    /// Crawling interval (more CPU intensive than watching a single file)
+    pub crawl_interval: Duration,
 }
 
 impl Default for Settings {
@@ -68,8 +101,12 @@ impl Settings {
                 blue: 0.0,
                 alpha: 0.1,
             }),
-            interval: Duration::from_secs(3),
+            interval: DEFAULT_INTERVAL,
             lcov_file: None,
+            dirs_blacklist: None,
+            ignore_hidden_dirs: DEFAULT_IGNORE_HIDDEN_DIRS,
+            max_depth: DEFAULT_MAX_DEPTH,
+            crawl_interval: DEFAULT_CRAWL_INTERVAL,
         }
     }
 

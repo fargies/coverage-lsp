@@ -23,8 +23,9 @@
 
 use std::collections::{HashSet, VecDeque};
 use std::ops::{Deref, DerefMut};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
+use std::time::SystemTime;
 
 use serde_json::Value;
 use tokio::{
@@ -79,6 +80,20 @@ pub struct CoverageLanguageServerContext {
 pub struct State {
     pub is_registered: bool,
     pub has_dyn_color_provider: bool,
+    pub last_crawl: Option<SystemTime>,
+}
+
+impl State {
+    /// Return true if [path] is newer than [self.last_crawl]
+    pub fn is_path_newer(&self, path: &Path) -> bool {
+        match self.last_crawl.as_ref() {
+            Some(mtime) => match path.metadata().and_then(|m| m.modified()) {
+                Ok(path_mtime) => &path_mtime > mtime,
+                Err(_) => true,
+            },
+            None => true,
+        }
+    }
 }
 
 struct ContextGuard<'a>(Option<State>, &'a CoverageLanguageServerContext);
@@ -148,10 +163,14 @@ impl CoverageLanguageServerContext {
 
     async fn run(weak: Weak<Self>) {
         while let Some(ctx) = weak.upgrade() {
-            ctx.update().await;
+            let has_report = ctx.update().await;
 
             drop(ctx);
-            let interval = Settings::get().interval;
+            let interval = if has_report {
+                Settings::get().interval
+            } else {
+                Settings::get().crawl_interval
+            };
             tokio::time::sleep(interval).await;
         }
     }
@@ -160,33 +179,40 @@ impl CoverageLanguageServerContext {
     ///
     /// returns [None] if there's nothing to parse or if the report is already
     /// up to date.
-    async fn get_update_file(&self) -> Option<PathBuf> {
+    async fn get_update_file(&self, state: &mut State) -> Option<PathBuf> {
         let setting_file_guard = Settings::get().lcov_file.as_ref().map(Arc::clone);
         let setting_file = setting_file_guard.as_ref().map(|v| v.as_ref());
         match self.report.read().await.as_ref() {
             Some(report)
                 if setting_file.is_some_and(|setting_file| setting_file != &report.path) =>
             {
+                /* lcov_file in settings has been updated */
                 Some(setting_file.unwrap().clone())
             }
             Some(report) if report.is_outdated() => Some(report.path.clone()),
             Some(_) => None,
             None => match setting_file {
                 Some(file) => Some(file.clone()),
-                None => self.find_lcov_file().await,
+                None => self.find_lcov_file(state).await,
             },
         }
     }
 
-    pub async fn update(&self) {
+    /// Update report if necessary
+    ///
+    /// Will crawl to find a file, and re-use the same unless settings changes
+    /// once found
+    ///
+    /// Returns true if a report is valid and available
+    pub async fn update(&self) -> bool {
         let mut context = match ContextGuard::new(self) {
             Some(ctx) => ctx,
             None => {
                 tracing::warn!("no context to run update");
-                return;
+                return false;
             }
         };
-        if let Some(file) = self.get_update_file().await {
+        if let Some(file) = self.get_update_file(&mut context).await {
             tracing::info!(?file, "(re)loading file");
             if context.is_registered && context.has_dyn_color_provider {
                 if let Err(err) = self
@@ -211,7 +237,7 @@ impl CoverageLanguageServerContext {
                 Err(err) => {
                     tracing::error!(?err, "failed to load report");
                     self.report.write().await.take();
-                    return;
+                    return false;
                 }
             };
             let root_uri = self.root_uri.read().await.clone();
@@ -241,17 +267,31 @@ impl CoverageLanguageServerContext {
                 }
                 context.is_registered = true;
             }
+            true
+        } else {
+            self.report.read().await.is_some()
         }
     }
 
     /// Crawl the workspace to find an '*.info' file
-    pub async fn find_lcov_file(&self) -> Option<PathBuf> {
+    pub async fn find_lcov_file(&self, state: &mut State) -> Option<PathBuf> {
         tracing::debug!("crawling for coverage file");
+        let timer = std::time::Instant::now();
+        let now = SystemTime::now();
         let mut dir_stack = VecDeque::with_capacity(64);
-        let root_path = self.root_uri.read().await.path().to_string();
-        dir_stack.push_back(PathBuf::from(&root_path));
+        let root_path = PathBuf::from(self.root_uri.read().await.path().to_string());
+        dir_stack.push_back((1usize, state.is_path_newer(&root_path), root_path.clone()));
+        let (mut dirs_count, mut files_count) = (0usize, 0usize);
+        let (blacklist, ignore_hidden_dirs, max_depth) = {
+            let settings = Settings::get();
+            (
+                settings.dirs_blacklist.as_ref().map(Arc::clone),
+                settings.ignore_hidden_dirs,
+                settings.max_depth,
+            )
+        };
 
-        while let Some(path) = dir_stack.pop_front() {
+        while let Some((depth, is_path_newer, path)) = dir_stack.pop_front() {
             let mut reader = match tokio::fs::read_dir(path).await {
                 Ok(reader) => reader,
                 Err(err) => {
@@ -260,18 +300,40 @@ impl CoverageLanguageServerContext {
                 }
             };
             while let Ok(Some(entry)) = reader.next_entry().await {
-                let path = entry.path();
-                if path.is_dir() {
-                    dir_stack.push_back(path);
-                } else if path.extension().is_some_and(|ext| ext == "info") {
-                    tracing::info!(
-                        file = ?path.strip_prefix(&root_path).unwrap_or(&path),
-                        "coverage file found"
-                    );
-                    return Some(path);
+                let file_type = match entry.file_type().await {
+                    Ok(file_type) => file_type,
+                    Err(_) => continue,
+                };
+
+                if file_type.is_dir() {
+                    let file_name = entry.file_name();
+                    if depth <= max_depth
+                        && blacklist.as_ref().is_none_or(|b| !b.contains(&file_name))
+                        && (!ignore_hidden_dirs
+                            || file_name.as_encoded_bytes().first() != Some(&b'.'))
+                    {
+                        let path = entry.path();
+                        dir_stack.push_back((depth + 1, state.is_path_newer(&path), path));
+                        dirs_count += 1;
+                    }
+                } else if is_path_newer {
+                    let file_name = entry.file_name();
+                    let file_name = file_name.as_encoded_bytes();
+                    files_count += 1;
+                    if file_name.len() > 5 && &file_name[file_name.len() - 5..] == b".info" {
+                        let path = entry.path();
+                        tracing::info!(
+                            file = ?path.strip_prefix(&root_path).unwrap_or(&path),
+                            "coverage file found"
+                        );
+                        state.last_crawl = Some(now);
+                        return Some(path);
+                    }
                 }
             }
         }
+        state.last_crawl = Some(now);
+        tracing::debug!(elapsed = ?timer.elapsed(), dirs = dirs_count, files = files_count, "no coverage file found");
         None
     }
 

@@ -23,9 +23,15 @@ language server with Zed.
 
 ### Installation
 
-The extension may be installed from source, by cloning [fargies/coverage-lsp](https://github.com/fargies/coverage-lsp) repository and selecting the `zed-coverage-lsp` directory from "Install Dev Extension" menu.
+This extension is available from [Zed extension store](https://zed.dev/extensions/coverage-lsp)
+and can be installed directly from the editor.
 
-If not already found in path, the extension will download and install latest _coverage-lsp_ server from [GitHub's project releases](https://github.com/fargies/coverage-lsp/releases).
+The extension may also be installed from source, by cloning
+[fargies/coverage-lsp](https://github.com/fargies/coverage-lsp) repository and
+selecting the `zed-coverage-lsp` directory from "Install Dev Extension" menu.
+
+If not already found in path, the extension will download and install latest
+_coverage-lsp_ server from [GitHub's project releases](https://github.com/fargies/coverage-lsp/releases).
 
 To install your own version of _coverage-lsp_, simply use:
 
@@ -55,6 +61,13 @@ CSS color used to highlight **uncovered lines**.
 - Parsed using [`csscolorparser`](https://crates.io/crates/csscolorparser).
 - Default: `rgba(100%,0%,0%,10%)`
 
+#### `lcov_file`
+
+Path to the [LCOV](https://lcov.readthedocs.io) coverage file to load.
+
+- If not specified, the server searches the workspace and uses the first
+  `*.info` file it finds.
+
 #### `interval`
 
 Interval used to check whether the coverage file has changed.
@@ -63,12 +76,29 @@ Interval used to check whether the coverage file has changed.
 - Example values: `3s`, `20s`, `1m`
 - Default: `3s`
 
-#### `lcov_file`
+#### `dirs_blacklist`
 
-Path to the [LCOV](https://lcov.readthedocs.io) coverage file to load.
+List of directories to ignore when crawling for a coverage file.
 
-- If not specified, the server searches the workspace and uses the first
-  `*.info` file it finds.
+- Default: `[ node_modules, deps, incremental, bin, include, lib ]`
+
+#### `ignore_hidden_dirs`
+
+Ignore directories starting with `.` when crawling for a coverage file.
+
+- Default: true
+
+#### `max_depth`
+
+Maximum directory depth during crawl.
+
+- Default: 3
+
+#### `crawl_interval`
+
+Workspace crawling interval used when looking for a file (then `interval` is used).
+
+- Default: 15
 
 #### Example Configuration
 
@@ -106,19 +136,20 @@ Border coloring:
 Inlay coloring:
 ![Zed Inlay Coloring](data/zed-inlay-color.png)
 
-
 ## Development
 
 ```bash
 # remove downloaded releases
 rm -rf ~/.local/share/zed/extensions/work/coverage-lsp/*
+# or on MacOS
+rm -rf /Users/fargie_s/Library/Application\ Support/Zed/extensions/work/coverage-lsp/*
 
 # Clone and build this project
 git clone https://github.com/fargies/coverage-lsp.git && cd coverage-lsp
 cargo build
 
 # Add `coverage-lsp` to your path
-export PATH=$PATH:$(path)/target/debug
+export PATH=$PATH:$(pwd)/target/debug
 
 # Start `zeditor`
 zeditor
