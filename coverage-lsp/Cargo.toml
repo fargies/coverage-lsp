@@ -8,12 +8,12 @@ edition = "2024"
 license = "Zlib"
 
 [dependencies]
-csscolorparser = { version = "0.8.2", features = ["serde"] }
+csscolorparser = { version = "0.9.0", features = ["serde"] }
 humantime-serde = "1.1.1"
-lcov = "0.8.1"
-serde = { version = "1.0.228", features = ["rc"] }
-serde_json = "1.0.149"
-tokio = { version = "1.50.0", features = [
+lcov = "0.8.2"
+serde = { version = "1.0.229", features = ["rc"] }
+serde_json = "1.0.154"
+tokio = { version = "1.54.1", features = [
     "io-std",
     "macros",
     "rt-multi-thread",
@@ -22,10 +22,10 @@ tokio = { version = "1.50.0", features = [
 ] }
 tower-lsp = "0.20.0"
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [dev-dependencies]
-ctor = "0.6.3"
+ctor = "1.0.13"
 
 [package.metadata.release]
 pre-release-hook = [
