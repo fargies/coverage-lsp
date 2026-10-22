@@ -34,6 +34,6 @@ pre-release-hook = [
     "--repository=..",
     "--output=../ChangeLog.md",
     "--tag=coverage-lsp-v{{version}}",
-    "--tag-pattern=coverage-lsp-v.*",
+    "--tag-pattern=^coverage-lsp-v.*",
     "--exclude-path=zed-coverage-lsp/**",
 ]

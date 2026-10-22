@@ -23,5 +23,5 @@ pre-release-hook = [
     "cliff",
     "--output=ChangeLog.md",
     "--tag=zed-coverage-lsp-v{{version}}",
-    "--tag-pattern=zed-coverage-lsp-v.*"
+    "--tag-pattern=^zed-coverage-lsp-v.*"
 ]
