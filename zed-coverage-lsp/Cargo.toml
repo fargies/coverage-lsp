@@ -21,9 +21,7 @@ pre-release-replacements = [
 pre-release-hook = [
     "git",
     "cliff",
-    "--repository=..",
     "--output=ChangeLog.md",
-    "--tag=zed-coverage-lsp-{{version}}",
-    "--tag-pattern=zed-coverage-lsp-v.*",
-    "--exclude-path=coverage-lsp/**",
+    "--tag=zed-coverage-lsp-v{{version}}",
+    "--tag-pattern=zed-coverage-lsp-v.*"
 ]
