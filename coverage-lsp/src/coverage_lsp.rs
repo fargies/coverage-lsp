@@ -273,7 +273,7 @@ impl CoverageLanguageServerContext {
         }
     }
 
-    /// Crawl the workspace to find an '*.info' file
+    /// Crawl the workspace to find an '*.info' or 'coverage.out' file
     pub async fn find_lcov_file(&self, state: &mut State) -> Option<PathBuf> {
         tracing::debug!("crawling for coverage file");
         let timer = std::time::Instant::now();
@@ -320,7 +320,7 @@ impl CoverageLanguageServerContext {
                     let file_name = entry.file_name();
                     let file_name = file_name.as_encoded_bytes();
                     files_count += 1;
-                    if file_name.len() > 5 && &file_name[file_name.len() - 5..] == b".info" {
+                    if file_name.ends_with(b".info") || file_name == b"coverage.out" {
                         let path = entry.path();
                         tracing::info!(
                             file = ?path.strip_prefix(&root_path).unwrap_or(&path),
