@@ -63,10 +63,12 @@ CSS color used to highlight **uncovered lines**.
 
 #### `lcov_file`
 
-Path to the [LCOV](https://lcov.readthedocs.io) coverage file to load.
+Path to the coverage file to load, either [LCOV](https://lcov.readthedocs.io)
+or a Go cover profile (`go test -coverprofile=coverage.out`). The format is
+detected from the file content.
 
 - If not specified, the server searches the workspace and uses the first
-  `*.info` file it finds.
+  `*.info` or `coverage.out` file it finds.
 
 #### `interval`
 
