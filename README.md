@@ -68,7 +68,7 @@ or a Go cover profile (`go test -coverprofile=coverage.out`). The format is
 detected from the file content.
 
 - If not specified, the server searches the workspace and uses the first
-  `*.info` or `coverage.out` file it finds.
+  `*.info`, `coverage.out` or `cover.out` file it finds.
 
 #### `interval`
 

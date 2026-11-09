@@ -35,6 +35,7 @@ use tokio::{
 use tower_lsp::lsp_types::{ConfigurationItem, Registration, Unregistration};
 use tower_lsp::{Client, lsp_types::Url};
 
+use crate::coverage_report::go;
 use crate::{CoverageReport, Settings, logger::LogPump};
 
 #[derive(Debug)]
@@ -273,7 +274,7 @@ impl CoverageLanguageServerContext {
         }
     }
 
-    /// Crawl the workspace to find an '*.info' or 'coverage.out' file
+    /// Crawl the workspace to find an '*.info', 'coverage.out' or 'cover.out' file
     pub async fn find_lcov_file(&self, state: &mut State) -> Option<PathBuf> {
         tracing::debug!("crawling for coverage file");
         let timer = std::time::Instant::now();
@@ -320,7 +321,7 @@ impl CoverageLanguageServerContext {
                     let file_name = entry.file_name();
                     let file_name = file_name.as_encoded_bytes();
                     files_count += 1;
-                    if file_name.ends_with(b".info") || file_name == b"coverage.out" {
+                    if file_name.ends_with(b".info") || go::is_profile_name(file_name) {
                         let path = entry.path();
                         tracing::info!(
                             file = ?path.strip_prefix(&root_path).unwrap_or(&path),
