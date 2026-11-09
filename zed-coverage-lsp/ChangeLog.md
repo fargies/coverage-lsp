@@ -1,3 +1,13 @@
+## [zed-coverage-lsp-v1.0.5] - 2026-11-09
+
+### 🚀 Features
+
+- *(extension)* ⚙️ add Ruby support
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix git-cliff (tag-pattern is not from tag-strat by default)
+
 ## [zed-coverage-lsp-v1.0.4] - 2026-10-22
 
 ### 🚀 Features
