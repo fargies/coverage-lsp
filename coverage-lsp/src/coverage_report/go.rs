@@ -1,5 +1,5 @@
 /*
-** Copyright (C) 2026 Sylvain Fargier
+** Copyright (C) 2026 Beni Pranata
 **
 ** This software is provided 'as-is', without any express or implied
 ** warranty.  In no event will the authors be held liable for any damages
@@ -18,7 +18,7 @@
 ** 3. This notice may not be removed or altered from any source distribution.
 **
 ** Created on: 2026-03-05T15:24:50
-** Author: Sylvain Fargier <fargier.sylvain@gmail.com>
+** Author: Beni Pranata
 */
 
 use std::{
