@@ -22,12 +22,7 @@
 */
 
 use std::time::Duration;
-use std::{
-    collections::{BTreeMap, HashMap},
-    io::{BufRead, BufReader},
-    path::{Path, PathBuf},
-    time::SystemTime,
-};
+use std::{collections::HashMap, path::PathBuf, time::SystemTime};
 
 use lcov::{Reader as LCOVReader, Record};
 use tower_lsp::jsonrpc::Result;
@@ -35,11 +30,20 @@ use tower_lsp::lsp_types::{ColorInformation, Url};
 
 use crate::{FileCoverage, make_error};
 
+pub(crate) mod go;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Format {
+    Lcov,
+    Go,
+}
+
 #[derive(Debug)]
 pub struct CoverageReport {
     pub path: PathBuf,
     pub mtime: SystemTime,
     pub id: String,
+    format: Format,
 
     pub db: HashMap<Url, FileCoverage>,
 }
@@ -49,7 +53,13 @@ impl TryFrom<PathBuf> for CoverageReport {
 
     fn try_from(path: PathBuf) -> std::result::Result<Self, Self::Error> {
         let mtime = path.metadata()?.modified()?;
+        let format = if go::is_profile(&path) {
+            Format::Go
+        } else {
+            Format::Lcov
+        };
         Ok(Self {
+            format,
             id: format!(
                 "{path:?}:{:?}",
                 mtime
@@ -78,7 +88,7 @@ impl CoverageReport {
             .metadata()
             .and_then(|m| m.modified())
             .map_err(|err| make_error(format!("failed update metadata: {err:?}")))?;
-        if is_go_profile(&self.path) {
+        if self.format == Format::Go {
             return self.load_go(root_uri);
         }
         let parser = match LCOVReader::open_file(&self.path) {
@@ -129,82 +139,10 @@ impl CoverageReport {
         Ok(())
     }
 
-    /// Load a Go cover profile (`go test -coverprofile=coverage.out`)
-    fn load_go(&mut self, root_uri: &Url) -> Result<()> {
-        let content = std::fs::read_to_string(&self.path)
-            .map_err(|err| make_error(format!("failed to read: {err:?}")))?;
-        let root = root_uri.to_file_path().unwrap_or_default();
-
-        let mut files: HashMap<&str, BTreeMap<u32, u64>> = HashMap::new();
-        for line in content.lines().skip(1) {
-            let Some((name, start, end, count)) = parse_go_block(line) else {
-                tracing::warn!(line, "malformed go coverage line");
-                continue;
-            };
-            let lines = files.entry(name).or_default();
-            for l in start..=end {
-                let entry = lines.entry(l.saturating_sub(1)).or_insert(0);
-                *entry = (*entry).max(count);
-            }
-        }
-
-        for (name, lines) in files {
-            let path = resolve_go_path(&root, name);
-            let url = match root_uri.join(&path.to_string_lossy()) {
-                Ok(url) => url,
-                Err(err) => {
-                    tracing::error!(?err, "failed to make Url from {path:?}");
-                    continue;
-                }
-            };
-            let mut cov = FileCoverage::new(url);
-            for (line, count) in lines {
-                cov.add(line, count);
-            }
-            tracing::info!(file = cov.uri.as_str(), "loaded");
-            self.db.insert(cov.uri.clone(), cov);
-        }
-        Ok(())
-    }
-
     pub fn create_document_color(&self, uri: &Url) -> Vec<ColorInformation> {
         match self.db.get(uri) {
             Some(report) => report.create_document_color(),
             None => Vec::default(),
-        }
-    }
-}
-
-fn is_go_profile(path: &Path) -> bool {
-    let Ok(file) = std::fs::File::open(path) else {
-        return false;
-    };
-    let mut first_line = String::new();
-    BufReader::new(file).read_line(&mut first_line).is_ok() && first_line.starts_with("mode:")
-}
-
-/// Parse `name.go:startLine.startCol,endLine.endCol numStmts count`
-fn parse_go_block(line: &str) -> Option<(&str, u32, u32, u64)> {
-    let (name, rest) = line.rsplit_once(':')?;
-    let (range, rest) = rest.split_once(' ')?;
-    let (_, count) = rest.split_once(' ')?;
-    let (start, end) = range.split_once(',')?;
-    let start = start.split_once('.')?.0.parse().ok()?;
-    let end = end.split_once('.')?.0.parse().ok()?;
-    Some((name, start, end, count.trim().parse().ok()?))
-}
-
-/// Go profiles use import paths (`example.com/mod/pkg/a.go`): find the longest
-/// suffix that exists in the workspace.
-fn resolve_go_path(root: &Path, name: &str) -> PathBuf {
-    let mut rest = name;
-    loop {
-        if root.join(rest).is_file() {
-            return PathBuf::from(rest);
-        }
-        match rest.split_once('/') {
-            Some((_, tail)) => rest = tail,
-            None => return PathBuf::from(name),
         }
     }
 }
@@ -310,5 +248,22 @@ mod tests {
         let ws = Workspace::new("lcov");
         let report = ws.load("TN:\nSF:src/a.rs\nDA:3,1\nDA:4,0\nend_of_record\n");
         assert_eq!(ws.lines(&report, "src/a.rs"), vec![(2, 1), (3, 0)]);
+    }
+
+    #[test]
+    fn format_is_detected_once_at_creation() {
+        let ws = Workspace::new("format");
+        let go = ws.0.join("cover.out");
+        fs::write(&go, "mode: set\n").unwrap();
+        assert_eq!(CoverageReport::try_from(go).unwrap().format, Format::Go);
+
+        let lcov = ws.0.join("lcov.info");
+        fs::write(&lcov, "TN:\n").unwrap();
+        let mut report = CoverageReport::try_from(lcov.clone()).unwrap();
+        assert_eq!(report.format, Format::Lcov);
+
+        fs::write(&lcov, "mode: set\n").unwrap();
+        report.load(&ws.root_uri()).unwrap();
+        assert_eq!(report.format, Format::Lcov);
     }
 }
