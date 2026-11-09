@@ -1,3 +1,17 @@
+## [coverage-lsp-v1.3.0] - 2026-11-09
+
+### 🚀 Features
+
+- Support go coverage profiles
+
+### 🚜 Refactor
+
+- Move go profile parser to submodule and detect format once
+
+### 📚 Documentation
+
+- Update authorship info
+
 ## [coverage-lsp-v1.2.0] - 2026-10-22
 
 ### ⚡ Performance
